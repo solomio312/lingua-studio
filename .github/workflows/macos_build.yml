@@ -49,5 +49,5 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Lingua-macOS-Build
+        name: Lingua-macOS-Intel-Build-Old-Machine
         path: dist/Lingua_macOS.zip
