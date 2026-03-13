@@ -201,6 +201,11 @@ class Base:
             method = self.method
             headers = self.get_headers()
             
+            # Check before request
+            if self.cancel_request and self.cancel_request():
+                from ..core.exception import TranslationCanceled
+                raise TranslationCanceled("Translation canceled by user.")
+
             print(f"DEBUG ENGINE: Requesting {method} {endpoint} (chars: {len(text)})")
             
             response = request(
@@ -211,6 +216,11 @@ class Base:
                 timeout=self.request_timeout, 
                 proxy_uri=self.proxy_uri,
                 raw_object=self.stream)
+
+            # Check after request
+            if self.cancel_request and self.cancel_request():
+                from ..core.exception import TranslationCanceled
+                raise TranslationCanceled("Translation canceled by user.")
             
             result = self.get_result(response)
             if not result or not result.strip():

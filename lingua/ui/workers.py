@@ -24,12 +24,13 @@ class TranslationWorker(QObject):
     log_message = Signal(str)  # For the Log tab
     finished = Signal()
 
-    def __init__(self, elements, engine_name, source_lang='Auto', target_lang='Romanian'):
+    def __init__(self, elements, engine_name, source_lang='Auto', target_lang='Romanian', force=False):
         super().__init__()
         self.elements = elements
         self.engine_name = engine_name
         self.source_lang = source_lang
         self.target_lang = target_lang
+        self.force = force
         self._is_canceled = False
 
     def cancel(self):
@@ -89,8 +90,9 @@ class TranslationWorker(QObject):
                 self.row_completed.emit(elem, 'Translating...')
                 
                 # Fast path: If already translated (from cache or previous run), skip API call
+                # ONLY if we are not in "force" mode (e.g. ad-hoc single row translation)
                 existing_trans = getattr(elem, 'translation', None)
-                if existing_trans:
+                if existing_trans and not self.force:
                     print(f"DEBUG WORKER: [Row {i}] Using cached translation.", flush=True)
                     self.row_completed.emit(elem, 'cached')
                     self.progress_updated.emit(i + 1, total)

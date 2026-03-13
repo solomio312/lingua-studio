@@ -69,7 +69,7 @@ class ExtractionWorker(QObject):
 
             merge_length = str(element_handler.get_merge_length())
             cache_id = uid(
-                self.epub_path + translator.name + target_lang + merge_length 
+                os.path.abspath(self.epub_path) + translator.name + target_lang + merge_length 
                 + 'utf-8' + chunking_method + 'norm_v1')
             
             cache = get_cache(cache_id)
@@ -892,10 +892,13 @@ class TranslationWorkspace(QWidget):
         # Determine which elements to translate based on mode
         if mode == 'all':
             untranslated = [p for p in self.elements if not p.translation and not p.ignored]
+            force = False
         elif mode == 'selected':
             selected_rows = list(set([item.row() for item in self.table.selectedItems()]))
             selected_rows.sort()
-            untranslated = [self.elements[r] for r in selected_rows if r < len(self.elements) and not self.elements[r].translation and not self.elements[r].ignored]
+            # In selected mode, we allow re-translating existing items (force)
+            untranslated = [self.elements[r] for r in selected_rows if r < len(self.elements) and not self.elements[r].ignored]
+            force = True
             if not selected_rows:
                 print("DEBUG APP: No selected rows", flush=True)
                 QMessageBox.warning(self, _tr("Attention"), _tr("No rows selected for translation!"))
@@ -907,8 +910,10 @@ class TranslationWorkspace(QWidget):
                 QMessageBox.warning(self, _tr("Attention"), _tr("No starting row selected!"))
                 return
             untranslated = [p for p in self.elements[current_row:] if not p.translation and not p.ignored]
+            force = False
         else:
             untranslated = []
+            force = False
 
         if not untranslated:
             print("DEBUG APP: Untranslated array is empty!", flush=True)
@@ -941,7 +946,8 @@ class TranslationWorkspace(QWidget):
             elements=untranslated, 
             engine_name=engine_name,
             source_lang=self.config.get('source_lang', 'Auto'),
-            target_lang=self.config.get('target_lang', 'Romanian')
+            target_lang=self.config.get('target_lang', 'Romanian'),
+            force=force
         )
         # Store worker reference to prevent GC and for signaling
         self.trans_worker = worker 
@@ -1023,9 +1029,11 @@ class TranslationWorkspace(QWidget):
 
     def _stop_translation(self):
         """Stop translation by sending cancel signal to background worker."""
-        self.status_label.setText('Stopping gracefully...')
+        self.status_label.setText(_tr('Stopping... Please wait for current item.'))
+        self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
         self.stop_btn.setEnabled(False)
-        if hasattr(self, 'trans_worker'):
+        self.translate_btn.setEnabled(False) # Prevent starting another while stopping
+        if hasattr(self, 'trans_worker') and self.trans_worker:
             self.trans_worker.cancel()
 
     def _on_export_clicked(self):
@@ -1550,6 +1558,14 @@ class TranslationWorkspace(QWidget):
             translated_text = "".join(result) if not isinstance(result, str) else result
             
             # 4. Show Result in Comparison Dialog
+            # Store context for applying the translation later
+            self._last_trans_info = {
+                'source_editor': self.sender(),
+                'original_selection': text,
+                'selection_start': self.sender().textCursor().selectionStart(),
+                'selection_end': self.sender().textCursor().selectionEnd()
+            }
+            
             dlg = TranslationCompareDialog(
                 self, 
                 original_text=text, 
@@ -1577,7 +1593,48 @@ class TranslationWorkspace(QWidget):
                 p = self.elements[row]
 
         if p:
-            p.translation = translated_text
+            # Smart Insertion Logic:
+            # If we have selection info and it was a subset of the original, 
+            # try to replace ONLY that part in the translation.
+            info = getattr(self, '_last_trans_info', {})
+            source_editor = info.get('source_editor')
+            orig_selection = info.get('original_selection', '')
+            
+            final_translation = translated_text
+            
+            # If the source was the original text and it's a snippet
+            if source_editor == self.original_text and orig_selection and orig_selection != p.original:
+                # 1. Determine which lines were selected in Original
+                cursor = self.original_text.textCursor()
+                cursor.setPosition(info['selection_start'])
+                start_block = cursor.blockNumber()
+                cursor.setPosition(info['selection_end'])
+                end_block = cursor.blockNumber()
+                
+                # 2. Get current translation lines
+                trans_lines = (p.translation or "").split('\n')
+                
+                # Ensure we have enough lines in translation (mock with empty if needed)
+                orig_lines = (p.original or "").split('\n')
+                while len(trans_lines) < len(orig_lines):
+                    trans_lines.append("")
+                
+                # 3. Replace corresponding lines
+                # Multi-line snippets are replaced block by block
+                new_snippet_lines = translated_text.split('\n')
+                
+                # Replace the range in trans_lines with new_snippet_lines
+                # This assumes a 1:1 line mapping which is common in literary/technical
+                if start_block < len(trans_lines):
+                    # Remove old lines in this range and insert new ones
+                    trans_lines[start_block:end_block+1] = new_snippet_lines
+                    final_translation = '\n'.join(trans_lines)
+                else:
+                    # Fallback to append if out of range
+                    final_translation = (p.translation or "") + "\n" + translated_text
+            
+            # Apply final result
+            p.translation = final_translation
             p.aligned = True
             p.engine_name = self.engine_selector.currentText()
             
@@ -1588,9 +1645,9 @@ class TranslationWorkspace(QWidget):
             # Update Table UI
             self.table.update_row(p.row)
             
-            # Update Editor UI
+            # Update Editor UI (Syncing)
             self.translation_text.blockSignals(True)
-            self.translation_text.setPlainText(translated_text)
+            self.translation_text.setPlainText(final_translation)
             self.translation_text.blockSignals(False)
             
             self._update_alignment_report(p)
