@@ -17,7 +17,7 @@ a = Analysis(
     datas=[
         (os.path.join(lingua_dir, 'resources'), 'lingua/resources'),
         (os.path.join(lingua_dir, 'ui/resources'), 'lingua/ui/resources'),
-    ] + collect_data_files('PySide6'),
+    ],
     hiddenimports=[
         'httpx',
         'ebooklib',

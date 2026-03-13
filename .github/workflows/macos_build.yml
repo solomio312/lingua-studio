@@ -29,6 +29,12 @@ jobs:
       run: |
         pyinstaller lingua_mac.spec --noconfirm
 
+    - name: Inspect bundle size
+      run: |
+        du -sh dist/Lingua.app
+        echo "Top 20 largest files in the bundle:"
+        find dist/Lingua.app -type f -exec du -sh {} + | sort -hr | head -n 20
+
     - name: Zip the application
       run: |
         cd dist
