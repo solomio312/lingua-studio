@@ -80,20 +80,28 @@ class ExtractionWorker(QObject):
             cache.set_info('chunking_method', chunking_method)
             cache.set_info('app_version', getattr(lingua, '__version__', '1.0.0'))
 
-            # Extract via ebooklib
+            # 1. Essential Extraction (needed for book metadata/images regardless of cache)
             pages, spine_hrefs, book = extract_epub_pages(self.epub_path)
-            spine_order = spine_hrefs if config.get('use_spine_order', False) else None
-            elements = list(get_page_elements(pages, spine_order))
             
-            # Prepare originals and save to cache
-            original_group = element_handler.prepare_original(elements)
-            
-            # CLEAR OLD DATA to ensure fresh chunking rules are applied
-            # This handles cases where the user tried to re-extract but the .db wasn't deleted
-            cache.clear()
-            cache.save(original_group)
-            
+            # 2. Check if cache is already populated
             paragraphs = cache.all_paragraphs()
+            
+            if paragraphs:
+                print(f"DEBUG WORKER: Cache already populated with {len(paragraphs)} items. skipping element extraction.")
+            else:
+                # 3. Full Extraction and Chunking (only if cache is empty)
+                self.progress.emit('Performing full text extraction...')
+                spine_order = spine_hrefs if config.get('use_spine_order', False) else None
+                elements = list(get_page_elements(pages, spine_order))
+                
+                # Prepare originals and save to cache
+                original_group = element_handler.prepare_original(elements)
+                
+                # We NO LONGER call cache.clear() here. 
+                # cache.save() handles intelligent merging/updating.
+                cache.save(original_group)
+                paragraphs = cache.all_paragraphs()
+
             print(f"DEBUG WORKER: Extraction done. Found {len(paragraphs)} paragraphs.")
             
             context = {
@@ -1548,6 +1556,7 @@ class TranslationWorkspace(QWidget):
                 translated_text=translated_text.strip(), 
                 engine_name=engine_name
             )
+            dlg.applied.connect(self._on_context_translation_applied)
             QApplication.restoreOverrideCursor()
             dlg.show() # Non-modal
             
@@ -1557,6 +1566,36 @@ class TranslationWorkspace(QWidget):
             QMessageBox.critical(self, _tr('Translation Error'), _tr("An error occurred during quick translation:") + f"\n\n{str(e)}")
         finally:
             self.status_label.setText("Ready")
+
+    def _on_context_translation_applied(self, translated_text):
+        """Handle 'Apply' action from TranslationCompareDialog."""
+        p = getattr(self.translation_text, 'current_paragraph', None)
+        if not p:
+            # Fallback to current table row if editor reference is lost
+            row = self.table.currentRow()
+            if 0 <= row < len(self.elements):
+                p = self.elements[row]
+
+        if p:
+            p.translation = translated_text
+            p.aligned = True
+            p.engine_name = self.engine_selector.currentText()
+            
+            # Update cache
+            if self.cache:
+                self.cache.update_paragraph(p)
+                
+            # Update Table UI
+            self.table.update_row(p.row)
+            
+            # Update Editor UI
+            self.translation_text.blockSignals(True)
+            self.translation_text.setPlainText(translated_text)
+            self.translation_text.blockSignals(False)
+            
+            self._update_alignment_report(p)
+            self.status_label.setText(_tr("Translation applied to row {n}").format(n=p.row + 1))
+
     def _scroll_settings(self, delta):
         """Scroll the settings bar horizontally."""
         bar = self.settings_scroll.horizontalScrollBar()

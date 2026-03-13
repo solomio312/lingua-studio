@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication
 )
 from PySide6.QtGui import QColor, QTextFormat, QCursor, QPainter, QPaintEvent
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, Signal
 
 from lingua.core.i18n import _
 
@@ -17,6 +17,8 @@ from lingua.core.i18n import _
 class TranslationCompareDialog(QDialog):
     """Dialog showing original text and translation side by side (vertically split).
     Non-modal to allow interaction with the main window."""
+    
+    applied = Signal(str) # Emitted when user wants to use this translation
     
     def __init__(self, parent=None, original_text='', translated_text='', engine_name=''):
         super().__init__(parent)
@@ -78,6 +80,12 @@ class TranslationCompareDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch(1)
         
+        apply_button = QPushButton(_('✅ Apply Translation'))
+        apply_button.setObjectName("primary")
+        apply_button.setStyleSheet("background-color: #3b82f6; color: white; font-weight: bold;")
+        apply_button.clicked.connect(self.emit_applied)
+        button_layout.addWidget(apply_button)
+
         copy_button = QPushButton(_('📋 Copy Translation'))
         copy_button.clicked.connect(self.copy_translation)
         button_layout.addWidget(copy_button)
@@ -88,6 +96,11 @@ class TranslationCompareDialog(QDialog):
         
         layout.addLayout(button_layout)
     
+    def emit_applied(self):
+        """Emit signal with current translation and close."""
+        self.applied.emit(self.translation_editor.toPlainText())
+        self.close()
+
     def copy_translation(self):
         """Copy translation text to clipboard."""
         clipboard = QApplication.clipboard()
