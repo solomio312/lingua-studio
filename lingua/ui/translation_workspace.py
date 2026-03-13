@@ -17,107 +17,22 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QThread, QObject, QUrl, QTimer, QEvent
 from PySide6.QtGui import QColor, QFont, QAction, QDesktopServices, QIcon
 
-from lingua.core.config import get_config
-from lingua.core.conversion import extract_book
-from lingua.ui.workers import TranslationWorker, ExportWorker
+from lingua.core.config import get_config, CACHE_DIR
+from lingua.core.conversion import extract_epub_pages
+from lingua.core.translation import get_engine_class, get_translator, TRANSLATION_STYLES
+from .workers import TranslationWorker, ExportWorker, ExtractionWorker
 from lingua.ui.widgets.editor import SourceTextEditor, TranslationEditor, CodeEditor
 from lingua.ui.widgets.table import WorkspaceTable
 from lingua.ui.widgets.cache_dialog import CacheDialog
 from lingua.core.i18n import _ as _tr
 from lingua.ui.widgets.gated_widgets import GatedButton, get_pro_icon_text, show_pro_required_dialog
 from lingua.core.license import LicenseManager
-from lingua.core.translation import get_engine_class, get_translator, TRANSLATION_STYLES
-
+import lingua
 
 from lingua.core.utils import uid
 from lingua.core.cache import get_cache
 from lingua.core.element import get_element_handler, get_page_elements
-from lingua.core.conversion import extract_epub_pages
-from lingua.core.config import get_config, CACHE_DIR
-from lingua.core.translation import get_engine_class, get_translator
-import lingua
 
-class ExtractionWorker(QObject):
-    """Worker to extract EPUB paragraphs in a background thread."""
-    finished = Signal(object)   # emits a dict with context
-    error = Signal(str)
-    progress = Signal(str)
-
-    def __init__(self, epub_path):
-        super().__init__()
-        self.epub_path = epub_path
-
-    def run(self):
-        try:
-            print(f"DEBUG WORKER: ExtractionWorker starting for {self.epub_path}")
-            self.progress.emit('Extracting paragraphs...')
-            
-            config = get_config()
-            source_lang = config.get('source_lang', 'Auto')
-            target_lang = config.get('target_lang', 'Romanian')
-            chunking_method = config.get('chunking_method', 'standard')
-            engine_name = config.get('translate_engine', 'Google(Free)New')
-            
-            engine_class = get_engine_class(engine_name)
-            translator = get_translator(engine_class)
-            
-            # Create Element Handler
-            element_handler = get_element_handler(
-                translator.placeholder, translator.separator, 'ltr', chunking_method)
-            element_handler.set_translation_lang(
-                translator.get_iso639_target_code(target_lang))
-
-            merge_length = str(element_handler.get_merge_length())
-            cache_id = uid(
-                os.path.abspath(self.epub_path) + translator.name + target_lang + merge_length 
-                + 'utf-8' + chunking_method + 'norm_v1')
-            
-            cache = get_cache(cache_id)
-            cache.set_info('title', os.path.basename(self.epub_path))
-            cache.set_info('engine_name', translator.name)
-            cache.set_info('target_lang', target_lang)
-            cache.set_info('merge_length', merge_length)
-            cache.set_info('chunking_method', chunking_method)
-            cache.set_info('app_version', getattr(lingua, '__version__', '1.0.0'))
-
-            # 1. Essential Extraction (needed for book metadata/images regardless of cache)
-            pages, spine_hrefs, book = extract_epub_pages(self.epub_path)
-            
-            # 2. Check if cache is already populated
-            paragraphs = cache.all_paragraphs()
-            
-            if paragraphs:
-                print(f"DEBUG WORKER: Cache already populated with {len(paragraphs)} items. skipping element extraction.")
-            else:
-                # 3. Full Extraction and Chunking (only if cache is empty)
-                self.progress.emit('Performing full text extraction...')
-                spine_order = spine_hrefs if config.get('use_spine_order', False) else None
-                elements = list(get_page_elements(pages, spine_order))
-                
-                # Prepare originals and save to cache
-                original_group = element_handler.prepare_original(elements)
-                
-                # We NO LONGER call cache.clear() here. 
-                # cache.save() handles intelligent merging/updating.
-                cache.save(original_group)
-                paragraphs = cache.all_paragraphs()
-
-            print(f"DEBUG WORKER: Extraction done. Found {len(paragraphs)} paragraphs.")
-            
-            context = {
-                'book': book,
-                'pages': pages,
-                'element_handler': element_handler,
-                'cache': cache,
-                'paragraphs': paragraphs
-            }
-            self.finished.emit(context)
-        except Exception as e:
-            print(f"DEBUG WORKER: Extraction ERROR: {e}")
-            import traceback
-            traceback.print_exc()
-            logging.exception('Extraction failed')
-            self.error.emit(str(e))
 
 
 # Status colors
@@ -141,9 +56,11 @@ class TranslationWorkspace(QWidget):
         self.review_mode = review_mode
         self.book_title = title or (os.path.basename(epub_path) if epub_path != "REVIEW_MODE" else "Legacy Cache")
         self.elements = []
-        self.config = get_config()
-        self._threads = [] # Keep references to background threads to prevent GC crash
-        self._workers = [] # Keep references to workers to prevent GC crash
+        self.active_trans_thread = None
+        self.trans_worker = None
+        self.active_export_thread = None
+        self.export_worker = None
+        self.config = get_config() # Ensure config is loaded
 
         # Determine uid from path or filename
         if self.review_mode:
@@ -838,26 +755,20 @@ class TranslationWorkspace(QWidget):
 
     def _start_extraction(self):
         """Extract EPUB in background thread."""
-        thread = QThread(self)
-        self._threads.append(thread)
-        
+        thread = QThread(self) # Părintele self protejează de Garbage Collection
         worker = ExtractionWorker(self.epub_path)
-        self._workers.append(worker)
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
         worker.finished.connect(self._on_extraction_done)
         worker.error.connect(self._on_extraction_error)
-        
-        # Cleanup
+
+        # --- CLEANUP CORECT ---
         worker.finished.connect(thread.quit)
-        worker.error.connect(thread.quit)
-        worker.finished.connect(lambda: self._workers.remove(worker) if worker in self._workers else None)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
         thread.finished.connect(thread.deleteLater)
 
-        self.status_label.setText(_tr('Extracting...'))
+        self.status_label.setText(_tr("Extracting..."))
         thread.start()
 
     def _on_extraction_done(self, context):
@@ -936,42 +847,42 @@ class TranslationWorkspace(QWidget):
         self.progress.setValue(0)
 
         # 2. Re-read preferred engine from config safely
-        engine_name = self.config.get('translate_engine', 'Google(Free)')
+        # --- 3. Create the background Thread and Worker ---
         
-        # 3. Create the background Thread and Worker
-        thread = QThread(self)
-        self._threads.append(thread)
-        
-        worker = TranslationWorker(
+        # Prevenim pornirea multiplă dacă deja rulează
+        if self.active_trans_thread and self.active_trans_thread.isRunning():
+            print("DEBUG APP: Translation already running!", flush=True)
+            return
+
+        self.active_trans_thread = QThread(self)
+        self.trans_worker = TranslationWorker(
             elements=untranslated, 
             engine_name=engine_name,
             source_lang=self.config.get('source_lang', 'Auto'),
             target_lang=self.config.get('target_lang', 'Romanian'),
             force=force
         )
-        # Store worker reference to prevent GC and for signaling
-        self.trans_worker = worker 
-        self._workers.append(worker)
-        worker.moveToThread(thread)
+        self.trans_worker.moveToThread(self.active_trans_thread)
 
-        # 4. Connect Signals (Worker -> UI)
-        thread.started.connect(worker.run)
+        # --- 4. Connect Signals ---
+        self.active_trans_thread.started.connect(self.trans_worker.run)
         
-        worker.progress_updated.connect(self._on_trans_progress)
-        worker.row_completed.connect(self._on_row_completed)
-        worker.error_occurred.connect(self._on_trans_error)
-        worker.log_message.connect(self._on_trans_log_message)
-        
-        # Cleanup
-        worker.finished.connect(self._on_trans_finished)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(lambda: self._workers.remove(worker) if worker in self._workers else None)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
-        thread.finished.connect(thread.deleteLater)
+        self.trans_worker.progress_updated.connect(self._on_trans_progress)
+        self.trans_worker.row_completed.connect(self._on_row_completed)
+        self.trans_worker.error_occurred.connect(self._on_trans_error)
+        self.trans_worker.log_message.connect(self._on_trans_log_message)
+        self.trans_worker.finished.connect(self._on_trans_finished)
 
-        # 5. Start Execution
-        thread.start()
+        # --- CLEANUP CORECT ---
+        self.trans_worker.finished.connect(self.active_trans_thread.quit)
+        self.trans_worker.finished.connect(self.trans_worker.deleteLater)
+        self.active_trans_thread.finished.connect(self.active_trans_thread.deleteLater)
+        
+        # Opțional: curățăm referința la final
+        self.active_trans_thread.finished.connect(self._clear_active_worker)
+
+        # --- 5. Start Execution ---
+        self.active_trans_thread.start()
 
     def _on_trans_log_message(self, msg):
         """Append log messages from background worker to the Log tab."""
@@ -981,6 +892,11 @@ class TranslationWorkspace(QWidget):
     def _on_trans_progress(self, current, total):
         """Update progress bar safely from main thread."""
         self.progress.setValue(current)
+        if current < total:
+            self.status_label.setText(_tr('Translating {n}/{t} items...').format(n=current+1, t=total))
+            self.status_label.setStyleSheet("color: #3b82f6; font-size: 11px; margin-left: 10px;")
+        else:
+            self.status_label.setText(_tr('Finishing...'))
 
     def _on_row_completed(self, paragraph, status):
         """Update a specific row in the table when translation arrives from background."""
@@ -1022,10 +938,15 @@ class TranslationWorkspace(QWidget):
 
     def _on_trans_finished(self):
         """Reset buttons when processing is complete or cancelled."""
+        print("DEBUG UI: _on_trans_finished called", flush=True)
         self.stop_btn.setEnabled(False)
         self.translate_btn.setEnabled(True)
-        self.status_label.setText(_tr('Stopping...') if getattr(self, 'trans_worker', None) and self.trans_worker._is_canceled else _tr('Ready'))
+        
+        is_canc = getattr(self, 'trans_worker', None) and self.trans_worker._is_canceled
+        self.status_label.setText(_tr('Stopped') if is_canc else _tr('Ready'))
+        self.status_label.setStyleSheet("color: #10b981; font-weight: bold;" if not is_canc else "color: #ffaa00; font-weight: bold;")
         self.export_btn.setEnabled(True)
+        self.trans_worker = None # Clear reference
 
     def _stop_translation(self):
         """Stop translation by sending cancel signal to background worker."""
@@ -1103,28 +1024,29 @@ class TranslationWorkspace(QWidget):
             self.progress.setValue(0)
 
             # Start Export Worker
-            thread = QThread(self)
-            self._threads.append(thread)
-            
-            worker = ExportWorker(self.epub_path, output_path, self.cache, format=selected_format)
-            self._workers.append(worker)
-            worker.moveToThread(thread)
+            self.active_export_thread = QThread(self)
+            self.export_worker = ExportWorker(self.epub_path, output_path, self.cache, format=selected_format)
+            self.export_worker.moveToThread(self.active_export_thread)
 
-            thread.started.connect(worker.run)
+            self.active_export_thread.started.connect(self.export_worker.run)
             
             # Connect Progress & Signals
             def update_progress(pct, msg):
                 self.progress.setValue(pct)
                 self.status_label.setText(msg)
                 
-            worker.progress.connect(update_progress)
-            worker.error.connect(self._on_export_error)
-            worker.finished.connect(self._on_export_done)
+            self.export_worker.progress.connect(update_progress)
+            self.export_worker.error.connect(self._on_export_error)
+            self.export_worker.finished.connect(self._on_export_done)
             
-            worker.finished.connect(thread.quit)
-            worker.error.connect(thread.quit)
+            # --- CLEANUP CORECT ---
+            self.export_worker.finished.connect(self.active_export_thread.quit)
+            self.export_worker.error.connect(self.active_export_thread.quit)
+            self.export_worker.finished.connect(self.export_worker.deleteLater)
+            self.active_export_thread.finished.connect(self.active_export_thread.deleteLater)
+            self.active_export_thread.finished.connect(self._clear_export_worker)
 
-            thread.start()
+            self.active_export_thread.start()
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -1258,37 +1180,34 @@ class TranslationWorkspace(QWidget):
 
     def _on_translate_requested(self, paragraphs):
         """Perform ad-hoc translation on specific paragraphs."""
-        engine_name = self.config.get('translate_engine', 'Google(Free)')
-        thread = QThread(self)
-        self._threads.append(thread)
+        engine_name = self.config.get('translate_engine', 'Google(Free)New')
         
-        worker = TranslationWorker(
+        self.active_trans_thread = QThread(self)
+        self.trans_worker = TranslationWorker(
             elements=paragraphs, 
             engine_name=engine_name,
             source_lang=self.config.get('source_lang', 'Auto'),
             target_lang=self.config.get('target_lang', 'Romanian')
         )
-        self.trans_worker = worker # Set reference so UI knows we are active
-        self._workers.append(worker)
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
+        self.trans_worker.moveToThread(self.active_trans_thread)
         
-        worker.progress_updated.connect(self._on_trans_progress)
-        worker.row_completed.connect(self._on_row_completed)
-        worker.error_occurred.connect(self._on_trans_error)
-        worker.log_message.connect(self._on_trans_log_message)
-        
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(lambda: self._workers.remove(worker) if worker in self._workers else None)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(lambda: self._threads.remove(thread) if thread in self._threads else None)
-        thread.finished.connect(thread.deleteLater)
+        self.active_trans_thread.started.connect(self.trans_worker.run)
+        self.trans_worker.progress_updated.connect(self._on_trans_progress)
+        self.trans_worker.row_completed.connect(self._on_row_completed)
+        self.trans_worker.error_occurred.connect(self._on_trans_error)
+        self.trans_worker.log_message.connect(self._on_trans_log_message)
 
-        # UI statuses
+        # --- CLEANUP CORECT ---
+        self.trans_worker.finished.connect(self.active_trans_thread.quit)
+        self.trans_worker.finished.connect(self.trans_worker.deleteLater)
+        self.active_trans_thread.finished.connect(self.active_trans_thread.deleteLater)
+        self.active_trans_thread.finished.connect(self._clear_active_worker)
+        
         self.progress.setRange(0, len(paragraphs))
         self.progress.setValue(0)
-        self.status_label.setText(_tr('Translating {n} items...').format(n=len(paragraphs)))
-        thread.start()
+        self.status_label.setText(_tr("Translating {n} items...").format(n=len(paragraphs)))
+        
+        self.active_trans_thread.start()
 
     # Combined single handler for split
 
@@ -1308,7 +1227,7 @@ class TranslationWorkspace(QWidget):
         # Create a transient translator for per-segment actions
         translator = None
         try:
-            translator = get_translator()
+            translator = get_translator(engine_class=engine)
             translator.set_source_lang(self.config.get('source_lang', 'Auto'))
             translator.set_target_lang(self.config.get('target_lang', 'Romanian'))
         except Exception: pass
@@ -1448,17 +1367,23 @@ class TranslationWorkspace(QWidget):
 
     def _update_footer_stats(self):
         """Update the bottom global footer with translation statistics."""
-        if not hasattr(self, 'elements'): return
+        if not hasattr(self, 'elements') or not self.elements: return
         
         total_rows = len(self.elements)
-        current_row = self.table.currentRow() + 1 if self.table.currentRow() >= 0 else 0
+        # Use table selection to determine current row more accurately
+        current_row = 0
+        selected_items = self.table.selectedItems()
+        if selected_items:
+            current_row = selected_items[0].row() + 1
         
-        tot_chars = sum(len(p.original or '') for p in self.elements)
-        trans_chars = sum(len(p.original or '') for p in self.elements if p.translation)
+        # Real statistics
+        tot_chars = sum(len((p.original or "").strip()) for p in self.elements)
+        trans_chars = sum(len((p.original or "").strip()) for p in self.elements if p.translation)
         
-        non_aligned = sum(1 for p in self.elements if p.translation and (not getattr(p, 'aligned', True) or getattr(p, 'incomplete', False)))
+        non_aligned = sum(1 for p in self.elements if p.translation and (not getattr(p, 'aligned', True)))
         
-        self.footer_stats.setText(f"Total items: {current_row}/{total_rows} · Character count: {trans_chars}/{tot_chars} · Non-aligned items: {non_aligned}")
+        stats_text = f"Total items: {current_row}/{total_rows} · Character count: {trans_chars}/{tot_chars} · Non-aligned items: {non_aligned}"
+        self.footer_stats.setText(stats_text)
 
     # -----------------------------------------------------------------
     # Re-Chunking Methods (Phase 8)
@@ -1540,18 +1465,22 @@ class TranslationWorkspace(QWidget):
         # 1. UI Feedback
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         self.status_label.setText(f"Translating selection with {engine_name}...")
+        self.status_label.setStyleSheet("color: #10b981; font-weight: bold;")
         
         try:
-            # 2. Setup Translator
-            engine_cls = get_engine_class(engine_name)
-            translator = engine_cls()
+            # 2. Get Translator
+            engine_class = get_engine_class(engine_name)
+            translator = get_translator(engine_class)
             
             # Use current config for languages
-            source_lang = self.config.get('source_lang', 'Auto')
-            target_lang = self.config.get('target_lang', 'Romanian')
+            config = self.config
+            source_lang = config.get('source_lang', 'Auto')
+            target_lang = config.get('target_lang', 'Romanian')
             
             translator.set_source_lang(source_lang)
             translator.set_target_lang(target_lang)
+            # Add cancellation check (though this is synchronous on main thread for now)
+            translator.cancel_request = lambda: False 
             
             # 3. Perform Translation
             result = translator.translate(text)
@@ -1560,10 +1489,10 @@ class TranslationWorkspace(QWidget):
             # 4. Show Result in Comparison Dialog
             # Store context for applying the translation later
             self._last_trans_info = {
-                'source_editor': self.sender(),
+                'source_editor': source_editor,
                 'original_selection': text,
-                'selection_start': self.sender().textCursor().selectionStart(),
-                'selection_end': self.sender().textCursor().selectionEnd()
+                'selection_start': source_editor.textCursor().selectionStart() if source_editor else 0,
+                'selection_end': source_editor.textCursor().selectionEnd() if source_editor else 0
             }
             
             dlg = TranslationCompareDialog(
@@ -1574,7 +1503,9 @@ class TranslationWorkspace(QWidget):
             )
             dlg.applied.connect(self._on_context_translation_applied)
             QApplication.restoreOverrideCursor()
-            dlg.show() # Non-modal
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
             
         except Exception as e:
             QApplication.restoreOverrideCursor()
@@ -1667,32 +1598,51 @@ class TranslationWorkspace(QWidget):
         except:
             pass
 
+    def _clear_active_worker(self):
+        """Clear reference to active translation thread."""
+        self.trans_worker = None
+        self.active_trans_thread = None
+
+    def _clear_export_worker(self):
+        """Clear reference to active export thread."""
+        self.export_worker = None
+        self.active_export_thread = None
+
     def cleanup(self):
         """Release resources, stop threads, and close database connections."""
+        print("DEBUG UI: Workspace cleanup initiated.")
         import gc
         import logging
+        
         try:
-            # Stop any running workers
-            for worker in self._workers:
-                if hasattr(worker, 'stop'):
-                    worker.stop()
-            
-            # Close database connection explicitly
-            if hasattr(self, 'cache') and self.cache:
-                self.cache.close()
-                self.cache = None
-            
-            # Wait for threads to finish
-            for thread in self._threads:
-                if thread.isRunning():
-                    thread.quit()
-                    thread.wait(500)
-                    if thread.isRunning():
-                        thread.terminate() # Hard stop if needed
+            # 1. Stop active translation
+            if hasattr(self, 'active_trans_thread') and self.active_trans_thread and self.active_trans_thread.isRunning():
+                print("DEBUG UI: Stopping active translation thread...")
+                if hasattr(self, 'trans_worker') and self.trans_worker:
+                    self.trans_worker.cancel()
+                self.active_trans_thread.quit()
+                self.active_trans_thread.wait(2000) # Wait up to 2s
+                
+            # 2. Stop active export
+            if hasattr(self, 'active_export_thread') and self.active_export_thread and self.active_export_thread.isRunning():
+                print("DEBUG UI: Stopping active export thread...")
+                self.active_export_thread.quit()
+                self.active_export_thread.wait(2000)
 
-            # Clear references
-            self._workers = []
-            self._threads = []
+            # 3. Cancel any pending timers
+            if hasattr(self, '_filter_timer'):
+                self._filter_timer.stop()
+
+            # 4. Close Cache Database
+            if hasattr(self, 'cache') and self.cache:
+                try:
+                    self.cache.close()
+                    print("DEBUG UI: Cache database closed.")
+                except Exception as e:
+                    print(f"DEBUG UI: Error closing cache: {e}")
+                self.cache = None
+                
+            self.elements = []
             
             # Force garbage collection to release file handles
             gc.collect()

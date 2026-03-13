@@ -259,8 +259,8 @@ class SourceTextEditor(CodeEditor):
                 action = translate_menu.addAction(label)
                 # Use default argument to capture engine_name properly in closure
                 action.triggered.connect(
-                    lambda checked, txt=selected_text, eng=engine_name: 
-                    self.translate_callback(txt, eng))
+                    lambda checked, txt=selected_text, eng=engine_name, edt=self: 
+                    self.translate_callback(txt, eng, edt))
         
         menu.exec(event.globalPos())
 
@@ -299,7 +299,7 @@ class TranslationEditor(CodeEditor):
                 action = translate_menu.addAction(label)
                 # Use default argument to capture engine_name properly in closure
                 action.triggered.connect(
-                    lambda checked, txt=selected_text, eng=engine_name: 
-                    self.translate_callback(txt, eng))
+                    lambda checked, txt=selected_text, eng=engine_name, edt=self: 
+                    self.translate_callback(txt, eng, edt))
         
         menu.exec(event.globalPos())

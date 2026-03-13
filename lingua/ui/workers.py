@@ -5,10 +5,22 @@ Contains QThread-based workers to perform heavy I/O operations (like API request
 without blocking the main PySide6 event loop.
 """
 
+import os
 import logging
+import time
+import traceback
+from types import GeneratorType
+
 from PySide6.QtCore import QObject, Signal
 
-from lingua.core.translation import get_engine_class, get_translator
+import lingua
+from lingua.core.translation import get_engine_class, get_translator, estimate_cost
+from lingua.core.exception import TranslationCanceled
+from lingua.core.config import get_config
+from lingua.core.utils import uid
+from lingua.core.cache import get_cache
+from lingua.core.element import get_element_handler, get_page_elements
+from lingua.core.conversion import extract_epub_pages
 
 print(f"DEBUG WORKER: Workers module loaded from {__file__}", flush=True)
 
@@ -24,7 +36,13 @@ class TranslationWorker(QObject):
     log_message = Signal(str)  # For the Log tab
     finished = Signal()
 
-    def __init__(self, elements, engine_name, source_lang='Auto', target_lang='Romanian', force=False):
+    STATUS_TRANSLATING = "translating"
+    STATUS_DONE = "done"
+    STATUS_CACHED = "cached"
+    STATUS_ERROR = "error"
+    STATUS_CANCELED = "canceled"
+
+    def __init__(self, elements, engine_name, source_lang="Auto", target_lang="Romanian", force=False):
         super().__init__()
         self.elements = elements
         self.engine_name = engine_name
@@ -32,140 +50,143 @@ class TranslationWorker(QObject):
         self.target_lang = target_lang
         self.force = force
         self._is_canceled = False
+        self.model_name = engine_name
+        self.total_cost = None
+        self.cost_details = "N/A"
 
     def cancel(self):
         """Request the worker to stop processing."""
         self._is_canceled = True
 
+    def _check_canceled(self):
+        """Internal helper to raise cancellation exception if signal received."""
+        if self._is_canceled:
+            raise TranslationCanceled("Canceled by user")
+
     def run(self):
         """Main loop executed in the background thread."""
-        import time
+        start_time = time.time()
+        items_translated = 0
+        chars_translated = 0
+
         try:
             print(f"DEBUG WORKER: TranslationWorker starting. Mode: {self.engine_name}, Items: {len(self.elements)}", flush=True)
-            start_time = time.time()
-            items_translated = 0
-            chars_translated = 0
             
             # 1. Initialize the specified translation engine
             engine_class = get_engine_class(self.engine_name)
             translator = get_translator(engine_class)
             translator.set_source_lang(self.source_lang)
             translator.set_target_lang(self.target_lang)
-            translator.cancel_request = lambda: self._is_canceled
-            
+
+            # Defensive checker assignment
+            if hasattr(translator, "set_cancel_checker"):
+                translator.set_cancel_checker(lambda: self._is_canceled)
+            else:
+                translator.cancel_request = lambda: self._is_canceled
+
             # Determine specific model for accurate pricing
-            self.model_name = getattr(translator, 'model', self.engine_name)
-            
+            self.model_name = getattr(translator, "model", self.engine_name)
+
             total = len(self.elements)
             self.progress_updated.emit(0, total)
-            
+
             # --- STARTUP LOG SUMMARY ---
-            total_chars = sum(len(getattr(e, 'original', '') or getattr(e, 'raw', '') or '') for e in self.elements)
-            
-            # Use dynamic pricing from core logic
-            from lingua.core.translation import estimate_cost
+            total_chars = sum(len(getattr(e, "original", "") or getattr(e, "raw", "") or "") for e in self.elements)
             self.total_cost, self.cost_details, _ = estimate_cost(total_chars, self.engine_name, self.model_name)
-            
-            log_parts = [
-                "Start to translate ebook content",
-                "-" * 50,
-                f"Item count: {total}",
-                f"Character count: {total_chars}",
-                f"Engine: {self.engine_name} ({self.model_name})",
-                f"Estimated cost: {self.cost_details}",
-                "-" * 50,
-                ""
-            ]
-            self.log_message.emit("\n".join(log_parts))
-            # ---------------------------
+
+            self.log_message.emit(
+                "\n".join([
+                    "Start to translate ebook content",
+                    "-" * 50,
+                    f"Item count: {total}",
+                    f"Character count: {total_chars}",
+                    f"Engine: {self.engine_name} ({self.model_name})",
+                    f"Estimated cost: {self.cost_details}",
+                    "-" * 50,
+                    ""
+                ])
+            )
 
             # 2. Process each paragraph
             for i, elem in enumerate(self.elements):
-                if self._is_canceled:
-                    self.log_message.emit(f"Translation canceled by user at row {i}.")
-                    break
-                
-                # Update status to "Translating..." in the UI
-                setattr(elem, '_temp_status', 'Translating...')
-                self.row_completed.emit(elem, 'Translating...')
-                
-                # Fast path: If already translated (from cache or previous run), skip API call
-                # ONLY if we are not in "force" mode (e.g. ad-hoc single row translation)
-                existing_trans = getattr(elem, 'translation', None)
-                if existing_trans and not self.force:
+                self._check_canceled()
+
+                # Fast path: If already translated, skip API call unless forced
+                existing_trans = getattr(elem, "translation", None)
+                if existing_trans is not None and existing_trans != "" and not self.force:
                     print(f"DEBUG WORKER: [Row {i}] Using cached translation.", flush=True)
-                    self.row_completed.emit(elem, 'cached')
+                    self.row_completed.emit(elem, self.STATUS_CACHED)
                     self.progress_updated.emit(i + 1, total)
                     continue
 
                 # Get original text to translate
-                original_text = getattr(elem, 'original', '') or getattr(elem, 'raw', '')
-                if not original_text.strip() or original_text.isspace():
-                    # Empty or pure whitespace tags
+                original_text = getattr(elem, "original", "") or getattr(elem, "raw", "")
+                if not original_text or not original_text.strip():
                     print(f"DEBUG WORKER: [Row {i}] Skipping EMPTY row.", flush=True)
-                    self.row_completed.emit(elem, 'done')
+                    self.row_completed.emit(elem, self.STATUS_DONE)
                     self.progress_updated.emit(i + 1, total)
                     continue
 
-                # 2.5 Notify UI that this row started translating
+                # Notify UI that this row started translating
                 print(f"DEBUG WORKER: [Row {i}] Starting translation... (id={id(elem)})", flush=True)
-                elem._temp_status = 'Translating...'
-                self.row_completed.emit(elem, 'translating')
-                
-                # Emit row log
+                elem._temp_status = self.STATUS_TRANSLATING
+                self.row_completed.emit(elem, self.STATUS_TRANSLATING)
                 self.log_message.emit(f"Row: {getattr(elem, 'row', i)}\nOriginal: {original_text}")
 
-                # 3. Blocking HTTP API Call (safe here because we are in a QThread)
-                print(f"DEBUG WORKER: [Row {i}] Calling API: {self.engine_name}", flush=True)
                 try:
-                    translated_text = translator.translate(original_text)
-                    print(f"DEBUG WORKER: [Row {i}] API Success. Result len: {len(translated_text or '')}", flush=True)
-                    
-                    # Consume generator if the engine streams the response
-                    from types import GeneratorType
-                    if isinstance(translated_text, GeneratorType):
+                    # 3. Blocking HTTP API Call
+                    translated = translator.translate(original_text)
+
+                    # Consume generator if the engine streams
+                    if isinstance(translated, GeneratorType):
                         parts = []
-                        for chunk in translated_text:
-                            if self._is_canceled:
-                                break
+                        for chunk in translated:
+                            self._check_canceled()
                             parts.append(chunk)
-                        translated_text = "".join(parts)
-                    
-                    # Save it back to the element in memory so export can use it
-                    elem.translation = translated_text
+                        translated = "".join(parts)
+
+                    self._check_canceled()
+
+                    # Save result back to memory
+                    elem.translation = translated
                     elem.engine_name = self.engine_name
                     elem.target_lang = self.target_lang
                     elem.error = None
-                    
-                    # Report Translation to log
-                    self.log_message.emit(f"Translation: {translated_text}\n{'-' * 50}\n")
-                    
+                    elem._temp_status = self.STATUS_DONE
+
+                    self.log_message.emit(f"Translation: {translated}\n{'-' * 50}\n")
+
                     items_translated += 1
                     chars_translated += len(original_text)
-                    
-                    # 4. Notify UI that this row is ready
-                    print(f"DEBUG WORKER: [Row {i}] Emitting row_completed(elem, status=done)", flush=True)
-                    self.row_completed.emit(elem, 'done')
+
+                    # Notify UI that this row is ready
+                    self.row_completed.emit(elem, self.STATUS_DONE)
                     self.progress_updated.emit(i + 1, total)
+
+                except TranslationCanceled:
+                    print(f"DEBUG WORKER: [Row {i}] Translation Canceled in loop.", flush=True)
+                    elem._temp_status = self.STATUS_CANCELED
+                    self.row_completed.emit(elem, self.STATUS_CANCELED)
+                    self.log_message.emit(f"Translation canceled by user at row {i}.")
+                    break
 
                 except Exception as api_err:
                     print(f"DEBUG WORKER: [Row {i}] API FAILED: {api_err}", flush=True)
                     elem.error = str(api_err)
-                    elem._temp_status = 'Error'
-                    self.row_completed.emit(elem, 'error')
+                    elem._temp_status = self.STATUS_ERROR
+                    self.row_completed.emit(elem, self.STATUS_ERROR)
                     self.log_message.emit(f"⚠️ Row {i} FAILED: {api_err}\n{'-' * 50}\n")
-                    # We DON'T raise here, so we continue to the next row!
                     continue
 
         except Exception as e:
             logging.exception("Translation worker failed")
             self.error_occurred.emit(str(e))
+
         finally:
             end_time = time.time()
             duration_mins = (end_time - start_time) / 60.0
             
-            # Print Final Summary if anything was processed
-            if hasattr(self, 'total_cost'):
+            if self.total_cost is not None:
                 summary_parts = [
                     f"Time consuming: {duration_mins:.2f} minutes",
                     "Translation completed.",
@@ -174,8 +195,8 @@ class TranslationWorker(QObject):
                     "-" * 50,
                     f"✅ Translated: {items_translated} items ({chars_translated} characters)",
                     f"⏱ Duration: {duration_mins:.2f} minutes",
-                    f"💰 Estimated API cost: {getattr(self, 'cost_details', 'N/A')}",
-                    f"🤖 Model used: {getattr(self, 'model_name', self.engine_name)}",
+                    f"💰 Estimated API cost: {self.cost_details}",
+                    f"🤖 Model used: {self.model_name}",
                     "-" * 50,
                 ]
                 self.log_message.emit("\n".join(summary_parts))
@@ -225,4 +246,84 @@ class ExportWorker(QObject):
             import traceback
             traceback.print_exc()
             logging.exception(f"Export worker failed for format {self.format}")
+            self.error.emit(str(e))
+
+
+class ExtractionWorker(QObject):
+    """Worker to extract EPUB paragraphs in a background thread."""
+    finished = Signal(object)   # emits a dict with context
+    error = Signal(str)
+    progress = Signal(str)
+
+    def __init__(self, epub_path):
+        super().__init__()
+        self.epub_path = epub_path
+
+    def run(self):
+        try:
+            print(f"DEBUG WORKER: ExtractionWorker starting for {self.epub_path}")
+            self.progress.emit('Extracting paragraphs...')
+            
+            config = get_config()
+            target_lang = config.get('target_lang', 'Romanian')
+            chunking_method = config.get('chunking_method', 'standard')
+            engine_name = config.get('translate_engine', 'Google(Free)New')
+            
+            engine_class = get_engine_class(engine_name)
+            translator = get_translator(engine_class)
+            
+            # Create Element Handler
+            element_handler = get_element_handler(
+                translator.placeholder, translator.separator, 'ltr', chunking_method)
+            element_handler.set_translation_lang(
+                translator.get_iso639_target_code(target_lang))
+
+            merge_length = str(element_handler.get_merge_length())
+            cache_id = uid(
+                os.path.abspath(self.epub_path) + target_lang + 'norm_v1')
+            
+            cache = get_cache(cache_id)
+            cache.set_info('title', os.path.basename(self.epub_path))
+            cache.set_info('engine_name', translator.name)
+            cache.set_info('target_lang', target_lang)
+            cache.set_info('merge_length', merge_length)
+            cache.set_info('chunking_method', chunking_method)
+            cache.set_info('app_version', getattr(lingua, '__version__', '1.0.0'))
+
+            # 1. Essential Extraction (needed for book metadata/images regardless of cache)
+            pages, spine_hrefs, book = extract_epub_pages(self.epub_path)
+            
+            # 2. Check if cache is already populated
+            paragraphs = cache.all_paragraphs()
+            
+            if paragraphs:
+                print(f"DEBUG WORKER: Cache already populated with {len(paragraphs)} items. skipping element extraction.")
+            else:
+                # 3. Full Extraction and Chunking (only if cache is empty)
+                self.progress.emit('Performing full text extraction...')
+                spine_order = spine_hrefs if config.get('use_spine_order', False) else None
+                elements = list(get_page_elements(pages, spine_order))
+                
+                # Prepare originals and save to cache
+                original_group = element_handler.prepare_original(elements)
+                
+                # We NO LONGER call cache.clear() here. 
+                # cache.save() handles intelligent merging/updating.
+                cache.save(original_group)
+                paragraphs = cache.all_paragraphs()
+
+            print(f"DEBUG WORKER: Extraction done. Found {len(paragraphs)} paragraphs.")
+            
+            context = {
+                'book': book,
+                'pages': pages,
+                'element_handler': element_handler,
+                'cache': cache,
+                'paragraphs': paragraphs
+            }
+            self.finished.emit(context)
+        except Exception as e:
+            print(f"DEBUG WORKER: Extraction ERROR: {e}")
+            traceback.print_exc()
+            logging.exception('Extraction failed')
             self.error.emit(str(e))

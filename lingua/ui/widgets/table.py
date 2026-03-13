@@ -174,7 +174,18 @@ class WorkspaceTable(QTableWidget):
         self.item(row_index, 4).setText(target_lang)
         
         # 5. Determine Status
-        status = 'Done' if p.translation else ('Error' if p.error else getattr(p, '_temp_status', 'Pending'))
+        temp_status = getattr(p, '_temp_status', '').lower()
+        if p.translation:
+            status = 'Done'
+        elif p.error:
+            status = 'Error'
+        elif temp_status:
+            # Capitalize status (e.g. translating -> Translating)
+            status = temp_status.capitalize()
+            if status == 'Translating': status = 'Translating...'
+        else:
+            status = 'Pending'
+            
         self.item(row_index, 5).setText(status)
         
         # Reset colors
