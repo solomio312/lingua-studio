@@ -428,6 +428,8 @@ class MainWindow(QMainWindow):
         self.sidebar.setCurrentRow(0)
         # Clean up workspace
         if isinstance(current, TranslationWorkspace):
+            if hasattr(current, 'cleanup'):
+                current.cleanup()
             self.stack.removeWidget(current)
             current.deleteLater()
         self.status_bar.showMessage(f'Ready -- Lingua v{lingua.__version__}')
@@ -844,11 +846,6 @@ class MainWindow(QMainWindow):
         tour_action = QAction(_('Restart Guided Tour'), self)
         tour_action.triggered.connect(self.start_guided_tour)
         help_menu.addAction(tour_action)
-        
-        help_menu.addSeparator()
-        about_action = QAction(_('About Lingua'), self)
-        about_action.triggered.connect(lambda: self.sidebar.setCurrentRow(2))
-        help_menu.addAction(about_action)
 
     def _setup_tour(self):
         """Define the steps for the interactive tour."""

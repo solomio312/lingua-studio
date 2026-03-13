@@ -26,7 +26,7 @@ from lingua.core.i18n import _
 from lingua.core.license import LicenseManager
 from lingua.core.translation import TRANSLATION_STYLES
 from lingua.ui.widgets.tour_overlay import TourOverlay
-from lingua.ui.widgets.tutorial_dialog import GoogleCloudTutorialDialog
+from lingua.ui.widgets.tutorial_dialog import GoogleCloudTutorialDialog, OllamaSetupDialog
 from lingua.ui.widgets.gated_widgets import GatedCheck, GatedRadio, GatedButton, get_pro_icon_text, show_pro_required_dialog
 from lingua.core.cache_importer import CacheImporter
 
@@ -295,6 +295,13 @@ class SettingsPanel(QWidget):
         self.tabs.addTab(self._wrap_scroll(self._build_engine()), _('Engine'))
         self.tabs.addTab(self._wrap_scroll(self._build_content()), _('Content'))
         self.tabs.addTab(self._wrap_scroll(self._build_styles()), _('Styles'))
+        
+        # Local Ollama Tab (Pro)
+        ollama_title = _('Local Ollama')
+        if not LicenseManager.is_pro():
+            ollama_title = f"{ollama_title} 🔒"
+        self.tabs.addTab(self._wrap_scroll(self._build_ollama()), ollama_title)
+        
         self.maintenance_tab = self._wrap_scroll(self._build_maintenance())
         self.tabs.addTab(self.maintenance_tab, _('Maintenance'))
         self.tabs.setStyleSheet('QTabBar::tab { min-width: 100px; }')
@@ -540,7 +547,7 @@ class SettingsPanel(QWidget):
         self.engine_combo = QComboBox()
         for engine_cls in builtin_engines:
             display_name = engine_cls.name
-            is_pro_engine = any(x in engine_cls.name for x in ["Claude", "DeepL"])
+            is_pro_engine = any(x in engine_cls.name for x in ["Claude", "DeepL", "Ollama"])
             if is_pro_engine and not LicenseManager.is_pro():
                 display_name = f"{display_name} 🔒"
             self.engine_combo.addItem(display_name, engine_cls.name)
@@ -732,6 +739,11 @@ class SettingsPanel(QWidget):
         dlg = GoogleCloudTutorialDialog(self)
         dlg.exec()
 
+    def _show_ollama_setup(self):
+        """Show the Ollama Local AI setup guide."""
+        dlg = OllamaSetupDialog(self)
+        dlg.exec()
+
     def _on_engine_changed(self):
         """Load API keys and settings when engine selection changes."""
         engine_name = self.engine_combo.currentData()
@@ -739,7 +751,7 @@ class SettingsPanel(QWidget):
             return
             
         # Gating check
-        is_pro_engine = any(x in engine_name for x in ["Claude", "DeepL"])
+        is_pro_engine = any(x in engine_name for x in ["Claude", "DeepL", "Ollama"])
         if is_pro_engine and not LicenseManager.is_pro():
             show_pro_required_dialog(self.window(), _("Gated Engine"))
             # Revert to last valid index
@@ -782,7 +794,10 @@ class SettingsPanel(QWidget):
             print(f"[DEBUG] Failed to load models for {engine_name}: {e}")
 
         # Endpoint
-        self.genai_endpoint.setText(engine_prefs.get('endpoint', ''))
+        endpoint = engine_prefs.get('endpoint', '')
+        if not endpoint and engine_name == 'Ollama':
+            endpoint = 'http://localhost:11434'
+        self.genai_endpoint.setText(endpoint)
         self.temperature.setValue(
             float(engine_prefs.get('temperature', 0.4)))
         self.top_p.setValue(
@@ -794,7 +809,7 @@ class SettingsPanel(QWidget):
 
         # Show/hide refresh button (only for GenAI engines with get_models support)
         supports_refresh = False
-        if engine_name == 'Gemini':
+        if engine_name in ['Gemini', 'Ollama']:
             supports_refresh = True
         self.model_refresh_btn.setVisible(supports_refresh)
 
@@ -824,6 +839,27 @@ class SettingsPanel(QWidget):
             # Ensure the model is set if not already in the list
             if self.genai_model.currentIndex() < 0:
                 self.genai_model.setCurrentText("gemini-2.5-flash-lite")
+
+        # Defaults for Ollama
+        if engine_name == 'Ollama':
+            # Auto-switch to Merge mode if its currently standard
+            if self.chunk_standard.isChecked():
+                self.chunk_merge.setChecked(True)
+            
+            # Set optimal merge length for local LLMs
+            if self.merge_length.value() < 12000:
+                self.merge_length.setValue(12000)
+            
+            # Local sets: concurrency=1, timeout=120, interval=0.5
+            if self.concurrency.value() > 1:
+                self.concurrency.setValue(1)
+            if self.timeout.value() < 120.0:
+                self.timeout.setValue(120.0)
+            if self.interval.value() > 0.5:
+                self.interval.setValue(0.5)
+            
+            # Streaming is better for feedback on local models
+            self.stream_enabled.setChecked(True)
 
     def _test_engine(self):
         """Save current engine config and open interactive test dialog."""
@@ -858,7 +894,9 @@ class SettingsPanel(QWidget):
         """Start async model fetcher."""
         engine_name = self.engine_combo.currentData()
         api_text = self.api_keys.toPlainText().strip().split('\n')[0]
-        if not api_text:
+        
+        # Ollama doesn't need an API key
+        if not api_text and engine_name != 'Ollama':
             QMessageBox.warning(self, _('No API Key'), _('Please enter an API key first.'))
             return
 
@@ -953,6 +991,23 @@ class SettingsPanel(QWidget):
         
         layout.addWidget(import_group)
         
+        # Local Cache Management Section
+        cache_mgmt_group = QGroupBox(_('Database & Cache Management'))
+        cache_mgmt_layout = QVBoxLayout(cache_mgmt_group)
+        
+        cache_mgmt_desc = QLabel(_('Manage all local translation databases, view statistics, or delete unused caches.'))
+        cache_mgmt_desc.setWordWrap(True)
+        cache_mgmt_desc.setStyleSheet('color: #888; margin-bottom: 5px;')
+        cache_mgmt_layout.addWidget(cache_mgmt_desc)
+        
+        self.manage_cache_btn = QPushButton("📁 " + _('Open Cache Manager'))
+        self.manage_cache_btn.setObjectName('primary')
+        self.manage_cache_btn.setMinimumHeight(40)
+        self.manage_cache_btn.clicked.connect(self._on_manage_local_cache)
+        cache_mgmt_layout.addWidget(self.manage_cache_btn)
+        
+        layout.addWidget(cache_mgmt_group)
+        
         # Diagnostics Section
         diag_group = QGroupBox(_('System Diagnostics'))
         diag_layout = QFormLayout(diag_group)
@@ -969,6 +1024,79 @@ class SettingsPanel(QWidget):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(500, self._check_legacy_caches)
         
+        return page
+
+    def _build_ollama(self):
+        """Dedicated tab for local Ollama setup and info."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        header = QLabel(_('Local Ollama Integration'))
+        header.setObjectName('title')
+        header.setStyleSheet('font-size: 18px; margin-bottom: 5px;')
+        layout.addWidget(header)
+
+        # Pro Gating Frame
+        if not LicenseManager.is_pro():
+             pro_box = QFrame()
+             pro_box.setObjectName("settingsGroup") # Use theme-safe background/border
+             pro_layout = QVBoxLayout(pro_box)
+             pro_msg = QLabel(_("🔒 This feature is available only in the Pro version."))
+             pro_msg.setStyleSheet("color: #4ade80; font-weight: bold; font-size: 16px;")
+             pro_layout.addWidget(pro_msg)
+             pro_desc = QLabel(_("Unlock local LLM support, advanced chunking, and literary fine-tuning."))
+             pro_desc.setWordWrap(True)
+             pro_desc.setObjectName("subtitle")
+             pro_layout.addWidget(pro_desc)
+             layout.addWidget(pro_box)
+             layout.addStretch()
+             return page
+
+        # Setup Section
+        setup_group = QGroupBox(_('Setup & Configuration'))
+        setup_layout = QVBoxLayout(setup_group)
+        
+        setup_desc = QLabel(_('Translate books using AI models running directly on your computer. Private, free, and efficient.'))
+        setup_desc.setWordWrap(True)
+        setup_desc.setStyleSheet('color: #888; margin-bottom: 10px;')
+        setup_layout.addWidget(setup_desc)
+        
+        self.ollama_tutorial_btn = QPushButton("💡 " + _("Interactive Setup Tutorial"))
+        self.ollama_tutorial_btn.setObjectName('secondary')
+        self.ollama_tutorial_btn.setMinimumHeight(45)
+        self.ollama_tutorial_btn.clicked.connect(self._show_ollama_setup)
+        setup_layout.addWidget(self.ollama_tutorial_btn)
+        layout.addWidget(setup_group)
+
+        # Smart Tuning Info
+        tuning_group = QGroupBox(_('Intelligent Auto-Tuning'))
+        tuning_layout = QVBoxLayout(tuning_group)
+        
+        tuning_desc = QLabel(_("When you select Ollama as your engine, Lingua automatically tunes these settings for local throughput:"))
+        tuning_desc.setWordWrap(True)
+        tuning_desc.setObjectName('subtitle')
+        tuning_layout.addWidget(tuning_desc)
+
+        features = [
+            (_("Merge Mode"), _("Enabled (combines paragraphs for speed).")),
+            (_("Batch Size"), _("12,000 characters (optimized for local VRAM).")),
+            (_("Concurrency"), _("1 (ensures stability during local inference).")),
+            (_("Timeout"), _("120 seconds (buffer for complex literary segments)."))
+        ]
+
+        for f_title, f_desc in features:
+            f_lbl = QLabel(f"• <b>{f_title}</b>: {f_desc}")
+            f_lbl.setWordWrap(True)
+            f_lbl.setTextFormat(Qt.RichText)
+            f_lbl.setObjectName('subtitle')
+            f_lbl.setStyleSheet("margin-left: 10px;") # Indent list items
+            tuning_layout.addWidget(f_lbl)
+
+        layout.addWidget(tuning_group)
+
+        layout.addStretch()
         return page
 
     def _check_legacy_caches(self):
@@ -1021,6 +1149,23 @@ class SettingsPanel(QWidget):
             QMessageBox.information(self, _('Success'), _('Successfully migrated {n} databases to Lingua.').format(n=count))
         except Exception as e:
             QMessageBox.critical(self, _('Migration Failed'), str(e))
+
+    def _on_manage_local_cache(self):
+        """Open the Cache Manager dialog with active cache protection."""
+        from lingua.ui.widgets.local_cache_dialog import LocalCacheDialog
+        
+        # Find active cache ID if a workspace is open
+        active_id = None
+        main_window = self.window()
+        if hasattr(main_window, 'stack'):
+            current = main_window.stack.currentWidget()
+            # Dynamic import to avoid circular dependency
+            from lingua.ui.translation_workspace import TranslationWorkspace
+            if isinstance(current, TranslationWorkspace) and hasattr(current, 'cache'):
+                active_id = current.cache.identity
+                
+        dlg = LocalCacheDialog(self, active_cache_id=active_id)
+        dlg.exec()
 
     # ─── Tab: Content ────────────────────────────────────
 

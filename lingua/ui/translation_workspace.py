@@ -87,6 +87,10 @@ class ExtractionWorker(QObject):
             
             # Prepare originals and save to cache
             original_group = element_handler.prepare_original(elements)
+            
+            # CLEAR OLD DATA to ensure fresh chunking rules are applied
+            # This handles cases where the user tried to re-extract but the .db wasn't deleted
+            cache.clear()
             cache.save(original_group)
             
             paragraphs = cache.all_paragraphs()
@@ -287,12 +291,6 @@ class TranslationWorkspace(QWidget):
         ctx_btn.clicked.connect(self._on_manage_context_cache)
         settings_layout.addWidget(self._create_control_group(_tr("API Cache"), ctx_btn))
 
-        # F2. Local DB Cache
-        local_db_btn = QPushButton("📁 " + _tr("Local DBs"))
-        local_db_btn.setMinimumWidth(110)
-        local_db_btn.setToolTip(_tr("Manage local SQLite memory for current translations"))
-        local_db_btn.clicked.connect(self._on_manage_local_cache)
-        settings_layout.addWidget(self._create_control_group(_tr("EPUB Mem"), local_db_btn))
 
         # G. Custom Ebook Title
         title_container = QWidget()
@@ -760,11 +758,6 @@ class TranslationWorkspace(QWidget):
         dlg = CacheDialog(self, self.epub_path, self.book_title, engine_name)
         dlg.exec_()
         
-    def _on_manage_local_cache(self):
-        """Show a dialog for managing local SQLite cache files."""
-        from lingua.ui.widgets.local_cache_dialog import LocalCacheDialog
-        dlg = LocalCacheDialog(self)
-        dlg.exec()
 
     def _on_toggle_rechunk(self):
         """Hide/Show the re-chunk groupbox panel and the alignment report."""
@@ -1577,6 +1570,44 @@ class TranslationWorkspace(QWidget):
             self.scroll_right_btn.setVisible(bar.value() < bar.maximum())
         except:
             pass
+
+    def cleanup(self):
+        """Release resources, stop threads, and close database connections."""
+        import gc
+        import logging
+        try:
+            # Stop any running workers
+            for worker in self._workers:
+                if hasattr(worker, 'stop'):
+                    worker.stop()
+            
+            # Close database connection explicitly
+            if hasattr(self, 'cache') and self.cache:
+                self.cache.close()
+                self.cache = None
+            
+            # Wait for threads to finish
+            for thread in self._threads:
+                if thread.isRunning():
+                    thread.quit()
+                    thread.wait(500)
+                    if thread.isRunning():
+                        thread.terminate() # Hard stop if needed
+
+            # Clear references
+            self._workers = []
+            self._threads = []
+            
+            # Force garbage collection to release file handles
+            gc.collect()
+            
+        except Exception as e:
+            logging.error(f"Error during workspace cleanup: {e}")
+
+    def closeEvent(self, event):
+        """Ensure cleanup is called when the widget is closed."""
+        self.cleanup()
+        super().closeEvent(event)
 
     def eventFilter(self, watched, event):
         """Watch for resize events on the scroll area to update button visibility."""

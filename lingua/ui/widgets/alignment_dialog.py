@@ -21,6 +21,7 @@ class HoverSegmentWidget(QFrame):
     text_changed = Signal()
     copy_requested = Signal(object)
     translate_requested = Signal(object)
+    hovered = Signal(bool) # True for enter, False for leave
 
     def __init__(self, text, is_original=True, translator=None, parent=None):
         super().__init__(parent)
@@ -106,7 +107,7 @@ class HoverSegmentWidget(QFrame):
         self._anim.setStartValue(self.pos())
         self._anim.setEndValue(QPoint(self._original_pos.x() + offset, self._original_pos.y()))
         self._anim.start()
-        # Do not consume the event, let it pass to parent to allow dragging
+        self.hovered.emit(True)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -115,6 +116,7 @@ class HoverSegmentWidget(QFrame):
             self._anim.setStartValue(self.pos())
             self._anim.setEndValue(self._original_pos)
             self._anim.start()
+        self.hovered.emit(False)
         super().leaveEvent(event)
 
     def text(self):
@@ -166,12 +168,17 @@ class AlignmentDialog(QDialog):
         # Main Splitter for the two columns
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left: Original List
+        # Left: Original List (Now reorderable)
         self.orig_list = QListWidget()
         self.orig_list.setObjectName('origList')
+        self.orig_list.setDragEnabled(True)
+        self.orig_list.setAcceptDrops(True)
+        self.orig_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.orig_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.orig_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.orig_list.setSpacing(5)
-        self.orig_list.setDragEnabled(False) # Typically originals don't move
+        self.orig_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.orig_list.customContextMenuRequested.connect(lambda p: self._on_list_context_menu(self.orig_list, p))
         self.orig_list.setStyleSheet("QListWidget { background-color: #121212; border: none; padding: 10px; }")
         
         # Right: Translation List (Reorderable)
@@ -184,15 +191,16 @@ class AlignmentDialog(QDialog):
         self.trans_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.trans_list.setSpacing(5)
         self.trans_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.trans_list.customContextMenuRequested.connect(self._on_trans_context_menu)
+        self.trans_list.customContextMenuRequested.connect(lambda p: self._on_list_context_menu(self.trans_list, p))
         self.trans_list.setStyleSheet("QListWidget { background-color: #121212; border: none; padding: 10px; }")
         
-        # Connect internal drop update if needed
+        # Connect internal drop update for both
+        self.orig_list.model().rowsMoved.connect(lambda: self._update_status())
         self.trans_list.model().rowsMoved.connect(lambda: self._update_status())
 
         # Labels for columns
         col_header = QHBoxLayout()
-        lbl_orig = QLabel(_("ORIGINAL"))
+        lbl_orig = QLabel(_("ORIGINAL (Drag&Drop Reorder)"))
         lbl_orig.setStyleSheet("font-weight: bold; color: #a1a1aa; letter-spacing: 1px;")
         lbl_trans = QLabel(_("TRANSLATION (Drag&Drop Reorder)"))
         lbl_trans.setStyleSheet("font-weight: bold; color: #a1a1aa; letter-spacing: 1px;")
@@ -223,10 +231,15 @@ class AlignmentDialog(QDialog):
         btn_trans_all = QPushButton(_("🌐 Translate All"))
         btn_trans_all.setEnabled(self.translator is not None)
         btn_trans_all.clicked.connect(self._translate_all)
+
+        btn_reset = QPushButton(_("🔄 Reset All"))
+        btn_reset.setObjectName("secondary")
+        btn_reset.clicked.connect(self._reset_both)
         
         bulk_layout.addWidget(btn_auto)
         bulk_layout.addWidget(btn_copy_all)
         bulk_layout.addWidget(btn_trans_all)
+        bulk_layout.addWidget(btn_reset)
         bulk_layout.addStretch()
         
         main_layout.addLayout(bulk_layout)
@@ -237,14 +250,14 @@ class AlignmentDialog(QDialog):
         
         btn_merge = QPushButton(_("🔗 Merge Selected"))
         btn_merge.setObjectName("secondary")
-        btn_merge.clicked.connect(self._merge_selected_trans)
+        btn_merge.clicked.connect(lambda: self._merge_selected(self.trans_list))
         
         btn_insert = QPushButton(_("➕ Alignment Row (Empty)"))
         btn_insert.clicked.connect(lambda: self._insert_empty_row())
 
         btn_delete = QPushButton(_("🗑 Delete"))
         btn_delete.setObjectName("danger_btn")
-        btn_delete.clicked.connect(self._delete_selected_trans)
+        btn_delete.clicked.connect(lambda: self._delete_selected(self.trans_list))
         
         footer.addWidget(btn_merge)
         footer.addWidget(btn_insert)
@@ -268,16 +281,30 @@ class AlignmentDialog(QDialog):
     def _populate_list(self, list_widget, items, is_original):
         list_widget.clear()
         for text in items:
-            widget = HoverSegmentWidget(text, is_original=is_original, translator=self.translator)
-            if not is_original:
-                widget.text_changed.connect(self._update_status)
-                widget.copy_requested.connect(self._copy_single_original)
-                widget.translate_requested.connect(self._translate_single_segment)
+            self._insert_row(list_widget, -1, text, is_original)
+
+    def _insert_row(self, list_widget, index=-1, text="", is_original=None):
+        if is_original is None:
+            is_original = (list_widget == self.orig_list)
             
-            item = QListWidgetItem(list_widget)
-            item.setSizeHint(QSize(0, 140))
-            list_widget.addItem(item)
-            list_widget.setItemWidget(item, widget)
+        if index == -1:
+            index = list_widget.count()
+            
+        widget = HoverSegmentWidget(text, is_original=is_original, translator=self.translator)
+        widget.hovered.connect(lambda h, w=widget: self._on_segment_hover(w, h))
+        
+        if not is_original:
+            widget.text_changed.connect(self._update_status)
+            widget.copy_requested.connect(self._copy_single_original)
+            widget.translate_requested.connect(self._translate_single_segment)
+        else:
+            widget.text_changed.connect(self._update_status)
+            
+        item = QListWidgetItem()
+        item.setSizeHint(QSize(0, 140))
+        list_widget.insertItem(index, item)
+        list_widget.setItemWidget(item, widget)
+        return widget
 
     def _sync_scrollbars(self):
         """Synchronize vertical scrolling between the two columns."""
@@ -298,33 +325,44 @@ class AlignmentDialog(QDialog):
             self.status_label.setText(_("⚠️ Misaligned: {orig} originals vs {trans} translations.").format(orig=orig_count, trans=trans_count))
             self.status_label.setStyleSheet("color: #fbbf24; font-weight: bold;")
 
-    def _on_trans_context_menu(self, pos):
+    def _on_list_context_menu(self, list_widget, pos):
         menu = QMenu(self)
-        merge_act = QAction(_("🔗 Merge selected"), self)
-        merge_act.triggered.connect(self._merge_selected_trans)
         
-        del_act = QAction(_("🗑 Delete segment(s)"), self)
-        del_act.triggered.connect(self._delete_selected_trans)
+        is_original = (list_widget == self.orig_list)
+        selected_count = len(list_widget.selectedItems())
         
         ins_act = QAction(_("➕ Insert empty row above"), self)
-        ins_act.triggered.connect(lambda: self._insert_empty_row(self.trans_list.currentRow()))
-
+        ins_act.triggered.connect(lambda: self._insert_empty_row(list_widget, list_widget.currentRow()))
         menu.addAction(ins_act)
-        menu.addAction(merge_act)
-        menu.addSeparator()
-        menu.addAction(del_act)
-        menu.exec(self.trans_list.mapToGlobal(pos))
+        
+        if selected_count >= 2:
+            merge_act = QAction(_("🔗 Merge selected"), self)
+            merge_act.triggered.connect(lambda: self._merge_selected(list_widget))
+            menu.addAction(merge_act)
+            
+        if selected_count == 1:
+            split_act = QAction(_("✂️ Split segment at cursor"), self)
+            split_act.triggered.connect(lambda: self._split_selected(list_widget))
+            menu.addAction(split_act)
+        
+        if selected_count > 0:
+            menu.addSeparator()
+            del_act = QAction(_("🗑 Delete segment(s)"), self)
+            del_act.triggered.connect(lambda: self._delete_selected(list_widget))
+            menu.addAction(del_act)
+            
+        menu.exec(list_widget.mapToGlobal(pos))
 
-    def _merge_selected_trans(self):
-        selected_items = self.trans_list.selectedItems()
+    def _merge_selected(self, list_widget):
+        selected_items = list_widget.selectedItems()
         if len(selected_items) < 2:
             return
             
         # Get indices and items to merge
-        indices = sorted([self.trans_list.row(it) for it in selected_items])
+        indices = sorted([list_widget.row(it) for it in selected_items])
         texts = []
         for idx in indices:
-            widget = self.trans_list.itemWidget(self.trans_list.item(idx))
+            widget = list_widget.itemWidget(list_widget.item(idx))
             if widget:
                 texts.append(widget.text())
         
@@ -332,35 +370,80 @@ class AlignmentDialog(QDialog):
         
         # Keep the first item, remove others
         first_idx = indices[0]
-        first_widget = self.trans_list.itemWidget(self.trans_list.item(first_idx))
+        first_widget = list_widget.itemWidget(list_widget.item(first_idx))
         if first_widget:
             first_widget.set_text(merged_text)
             
         # Remove others in reverse order
         for idx in reversed(indices[1:]):
-            self.trans_list.takeItem(idx)
+            list_widget.takeItem(idx)
             
         self._update_status()
 
-    def _insert_empty_row(self, index=-1):
-        if index == -1:
-            index = self.trans_list.count()
-            
-        widget = HoverSegmentWidget("", is_original=False, translator=self.translator)
-        widget.text_changed.connect(self._update_status)
+    def _split_selected(self, list_widget):
+        """Splits a segment into two at the current cursor position."""
+        item = list_widget.currentItem()
+        if not item: return
         
-        item = QListWidgetItem()
-        item.setSizeHint(QSize(0, 140))
-        self.trans_list.insertItem(index, item)
-        self.trans_list.setItemWidget(item, widget)
+        widget = list_widget.itemWidget(item)
+        if not widget: return
+        
+        editor = widget.editor
+        cursor = editor.textCursor()
+        
+        pos = cursor.position()
+        full_text = editor.toPlainText()
+        
+        part1 = full_text[:pos].strip()
+        part2 = full_text[pos:].strip()
+        
+        if not part1 or not part2:
+            return # Don't split if one part is empty
+            
+        widget.set_text(part1)
+        # Insert new row below
+        self._insert_empty_row(list_widget, list_widget.row(item) + 1, text=part2)
+    def _insert_empty_row(self, list_widget, index=-1, text=""):
+        self._insert_row(list_widget, index, text)
         self._update_status()
 
-    def _delete_selected_trans(self):
-        selected = self.trans_list.selectedItems()
+    def _on_segment_hover(self, widget, hovered):
+        """Highlights the corresponding segment in the opposite list."""
+        list_widget = self.orig_list if widget.is_original else self.trans_list
+        other_list = self.trans_list if widget.is_original else self.orig_list
+        
+        # Find index of this widget
+        row = -1
+        for i in range(list_widget.count()):
+            if list_widget.itemWidget(list_widget.item(i)) == widget:
+                row = i
+                break
+        
+        if row != -1 and row < other_list.count():
+            other_item = other_list.item(row)
+            other_widget = other_list.itemWidget(other_item)
+            if other_widget:
+                if hovered:
+                    other_widget.setStyleSheet(other_widget.styleSheet() + """
+                        #segmentWidget { background-color: #2d3748; border: 1px solid #4a5568; }
+                    """)
+                else:
+                    # Reset style (this is a bit crude, ideally we have a reset-css method)
+                    other_widget.setStyleSheet(other_widget.styleSheet().replace("""
+                        #segmentWidget { background-color: #2d3748; border: 1px solid #4a5568; }
+                    """, ""))
+
+    def _reset_both(self):
+        self._populate_list(self.orig_list, self.orig_parts, is_original=True)
+        self._populate_list(self.trans_list, self.trans_parts, is_original=False)
+        self._update_status()
+
+    def _delete_selected(self, list_widget):
+        selected = list_widget.selectedItems()
         if not selected: return
         
         for item in selected:
-            self.trans_list.takeItem(self.trans_list.row(item))
+            list_widget.takeItem(list_widget.row(item))
         self._update_status()
 
     def _save(self):

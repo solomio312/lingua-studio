@@ -11,11 +11,12 @@ from .youdao import YoudaoTranslate
 from .baidu import BaiduTranslate
 from .microsoft import MicrosoftEdgeTranslate, AzureChatgptTranslate
 from .deepseek import DeepseekTranslate
+from .ollama import OllamaTranslate
 
 builtin_engines = (
     GoogleFreeTranslateNew, GoogleFreeTranslateHtml, GoogleFreeTranslate,
     GoogleBasicTranslate, GoogleBasicTranslateADC, GoogleAdvancedTranslate,
     ChatgptTranslate, AzureChatgptTranslate, GeminiTranslate, ClaudeTranslate,
-    DeepseekTranslate, DeeplTranslate, DeeplProTranslate, DeeplFreeTranslate,
-    MicrosoftEdgeTranslate, YoudaoTranslate, BaiduTranslate, KimiTranslate,
-    PerplexityTranslate)
+    DeepseekTranslate, OllamaTranslate, DeeplTranslate, DeeplProTranslate, 
+    DeeplFreeTranslate, MicrosoftEdgeTranslate, YoudaoTranslate, 
+    BaiduTranslate, KimiTranslate, PerplexityTranslate)

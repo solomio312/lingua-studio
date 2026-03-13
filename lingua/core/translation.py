@@ -69,6 +69,7 @@ ENGINE_PRICING = {
     'Google(Free)New': {'input': 0, 'output': 0, 'type': 'free'},
     'Google(Free)Html': {'input': 0, 'output': 0, 'type': 'free'},
     'DeepL(Free)': {'input': 0, 'output': 0, 'type': 'free'},
+    'Ollama': {'input': 0, 'output': 0, 'type': 'free'},
 }
 
 

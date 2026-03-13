@@ -70,7 +70,7 @@ exe = EXE(
     name='Lingua',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     console=False,
     disable_windowed_traceback=False,
@@ -85,7 +85,7 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     name='Lingua',
@@ -94,7 +94,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Lingua.app',
-    icon=os.path.join(lingua_dir, 'resources', 'icon.png'), # macOS usually wants .icns, but will try .png
+    icon=os.path.join(lingua_dir, 'resources', 'icon.icns'),
     bundle_identifier='com.manux.lingua',
     info_plist={
         'NSHighResolutionCapable': 'True',

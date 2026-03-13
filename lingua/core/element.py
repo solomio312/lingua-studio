@@ -534,6 +534,7 @@ class Extraction:
             'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
             'td', 'th', 'li', 'blockquote', 'caption', 'dt', 'dd', 'figcaption'
         }
+        self.merge_length = get_config().get('merge_length', 30000)
 
         self.priority_patterns = []
         self.filter_patterns = []
@@ -660,8 +661,11 @@ class Extraction:
             if self.smart_html_merge and get_name(node) in self.block_elements:
                 has_text = any(trim(r_text) != '' for r_text in node.itertext())
                 if has_text and not self._contains_block_elements(node):
-                    elements.append(PageElement(node, page_id, False))
-                    continue # Don't process children
+                    # Check if this block is too large to merge safely
+                    total_len = sum(len(trim(rt)) for rt in node.itertext())
+                    if total_len <= self.merge_length:
+                        elements.append(PageElement(node, page_id, False))
+                        continue # Don't process children
 
             # Check if this node has direct content or priority
             node_has_content = False
@@ -732,12 +736,12 @@ class ElementHandler:
 
         self.remove_pattern = None
         self.reserve_pattern = None
-
         self.elements = {}
         self.originals = []
 
     def set_merge_length(self, length):
-        self.merge_length = length
+        if length is not None:
+            self.merge_length = int(length)
 
     def get_merge_length(self):
         return self.merge_length
@@ -770,9 +774,58 @@ class ElementHandler:
             'var', 'canvas', 'svg', 'script', 'style')
         self.reserve_pattern = create_xpath(default_rules + tuple(rules))
 
+    def _is_terminator(self, text):
+        return text.strip().endswith(('.', '!', '?', '"', '”', '’', "'"))
+
+    def _split_text(self, text, max_len):
+        """Splits a large text into smaller chunks at sentence boundaries if possible."""
+        chunks = []
+        current = text
+        while len(current) > max_len:
+            # Try to find a sentence split point
+            split_at = -1
+            search_start = int(max_len * 0.85)
+            search_end = max_len
+            segment = current[search_start:search_end]
+            
+            # Look for sentence endings
+            for char in ('. ', '! ', '? ', '.”', '!”', '?”'):
+                pos = segment.rfind(char)
+                if pos != -1:
+                    split_at = search_start + pos + len(char)
+                    break
+            
+            if split_at == -1:
+                # Fallback to hard split
+                split_at = max_len
+            
+            chunks.append(current[:split_at].strip())
+            current = current[split_at:].strip()
+        
+        if current:
+            chunks.append(current)
+        return chunks
+
+    def _add_original_entry(self, raw, content, ignored, attributes=None, page_id=None):
+        """Unified method to add entries to self.originals with strict limit checks and recursive splitting."""
+        limit = self.merge_length or 30000
+        
+        # If content is still too large (e.g. from a merge or a single massive element), split it recursively
+        if not ignored and len(content) > limit:
+            sub_chunks = self._split_text(content, limit)
+            for sub_txt in sub_chunks:
+                # Add individual chunks (they are not ignored)
+                self._add_original_entry(raw, sub_txt, False, attributes, page_id)
+            return
+
+        oid = len(self.originals)
+        md5 = uid('%s%s' % (oid, content))
+        self.originals.append((oid, md5, raw, content, ignored, attributes, page_id))
+
     def prepare_original(self, elements):
         count = 0
-        for oid, element in enumerate(elements):
+        self.originals = []
+        for element in elements:
             element.set_placeholder(self.placeholder)
             element.set_position(self.position)
             element.set_target_direction(self.target_direction)
@@ -783,20 +836,18 @@ class ElementHandler:
                 element.set_column_gap(self.column_gap)
             element.set_remove_pattern(self.remove_pattern)
             element.set_reserve_pattern(self.reserve_pattern)
+            
             raw = element.get_raw()
             content = element.get_content()
-            # Make sure the element does not contain empty content because it
-            # may only contain ignored elements.
+            
             if content.strip() == '':
                 element.set_ignored(True)
-            md5 = uid('%s%s' % (oid, content))
-            attrs = element.get_attributes()
+            
             if not element.ignored:
                 self.elements[count] = element
                 count += 1
-            self.originals.append((
-                oid, md5, raw, content, element.ignored, attrs,
-                element.page_id))
+
+            self._add_original_entry(raw, content, element.ignored, element.get_attributes(), element.page_id)
         return self.originals
 
     def prepare_translation(self, paragraphs):
@@ -805,14 +856,79 @@ class ElementHandler:
             translations[paragraph.original] = paragraph.translation
         return translations
 
+    def _normalize_for_match(self, text):
+        """Normalize text for fuzzy matching (remove extra whitespace, separators)."""
+        if text is None:
+            return ''
+        # Remove common separators and normalize whitespace
+        normalized = text.strip()
+        # Remove trailing separator if present
+        if hasattr(self, 'separator') and self.separator:
+            while normalized.endswith(self.separator):
+                normalized = normalized[:-len(self.separator)].strip()
+        return normalized
+    
+    def _fuzzy_match(self, content, cached_original):
+        """Check if content matches cached original with tolerance for separators."""
+        content_clean = self._normalize_for_match(content)
+        cached_clean = self._normalize_for_match(cached_original)
+        
+        # Exact match after normalization
+        if content_clean == cached_clean:
+            return True
+        
+        # Check if content is contained in cached (for merged paragraphs)
+        if content_clean and cached_clean:
+            if content_clean in cached_clean or cached_clean in content_clean:
+                # Only match if similarity is high (>80% of shorter string)
+                shorter = min(len(content_clean), len(cached_clean))
+                longer = max(len(content_clean), len(cached_clean))
+                if shorter > 0 and shorter / longer > 0.8:
+                    return True
+        
+        return False
+
     def add_translations(self, paragraphs):
         translations = self.prepare_translation(paragraphs)
+        
+        # Build fallback list for fuzzy matching (for non-aligned cases)
+        fallback_translations = []
+        for paragraph in paragraphs:
+            if paragraph.translation:
+                fallback_translations.append((paragraph.original, paragraph.translation))
+        used_fallbacks = set()
+        
         for eid, element in self.elements.copy().items():
             if element.ignored:
                 element.add_translation()
                 continue
             original = element.get_content()
             translation = translations.get(original)
+            
+            # Fallback 1: fuzzy match for non-aligned paragraphs
+            if translation is None and fallback_translations:
+                for idx, (orig, trans) in enumerate(fallback_translations):
+                    if idx not in used_fallbacks and self._fuzzy_match(original, orig):
+                        translation = trans
+                        used_fallbacks.add(idx)
+                        break
+            
+            # Fallback 2: Check if original content is CONTAINED in a merged paragraph
+            if translation is None and fallback_translations:
+                original_clean = self._normalize_for_match(original)
+                for idx, (orig, trans) in enumerate(fallback_translations):
+                    orig_clean = self._normalize_for_match(orig)
+                    if original_clean and original_clean in orig_clean:
+                        translation = trans
+                        break
+            
+            # Fallback 3: Direct paragraph lookup for TOC/Metadata elements
+            if translation is None and fallback_translations:
+                for idx, (orig, trans) in enumerate(fallback_translations):
+                    if original == orig or original == orig.rstrip('\n\n ') or orig.startswith(original + '\n'):
+                        translation = trans
+                        break
+            
             if translation is None:
                 element.add_translation()
                 continue
@@ -821,35 +937,31 @@ class ElementHandler:
 
 
 class ElementHandlerMerge(ElementHandler):
-    def _is_terminator(self, text):
-        return text.strip().endswith(('.', '!', '?', '"', '”', '’', "'"))
-
-    def _flush_buffer(self, buffer, oid):
+    def _flush_buffer(self, buffer, attributes=None, page=None):
         if not buffer:
             return
         raw = ''.join(b[0] + self.separator for b in buffer)
         txt = ''.join(b[1] for b in buffer)
-        md5 = uid('%s%s' % (oid, txt))
-        md5 = uid('%s%s' % (oid, txt))
-        self.originals.append((oid, md5, raw, txt, False))
+        self._add_original_entry(raw, txt, False, attributes, page)
 
     def _find_best_split_index(self, buffer, current_length):
         acc_len = 0
         for i in range(len(buffer) - 1, -1, -1):
             content = buffer[i][1]
             if self._is_terminator(content):
+                # We found a boundary. Check if the batch ending here is within limits.
                 batch_len = current_length - acc_len
-                if batch_len > self.merge_length * 0.5:
+                if batch_len <= self.merge_length:
                     return i + 1
             acc_len += len(content)
         return -1
 
     def prepare_original(self, elements):
-        oid = 0
+        self.originals = []
         buffer = []
         current_length = 0
-        
-        # Global registry for this batch
+        current_page_id = None
+        non_merge_types = (TocElement, MetadataElement)
         self.registry = {}
         global_counter = 0
 
@@ -860,7 +972,6 @@ class ElementHandlerMerge(ElementHandler):
             
             element.set_registry(self.registry)
             element.set_id_start(global_counter)
-            
             element.set_placeholder(self.placeholder)
             element.set_position(self.position)
             element.set_target_direction(self.target_direction)
@@ -875,44 +986,54 @@ class ElementHandlerMerge(ElementHandler):
             code = element.get_raw()
             content = element.get_content()
             global_counter = len(self.registry)
+            
+            is_header = self._is_section_header(element, content)
+            page_changed = current_page_id is not None and getattr(element, 'page_id', None) != current_page_id
+            
+            if page_changed or (is_header and buffer):
+                if buffer:
+                    self._flush_buffer(buffer, page=current_page_id)
+                    buffer = []
+                    current_length = 0
+            
+            current_page_id = getattr(element, 'page_id', None)
+            
+            if isinstance(element, non_merge_types):
+                if buffer:
+                    self._flush_buffer(buffer, page=current_page_id)
+                    buffer = []
+                    current_length = 0
+                
+                self._add_original_entry(code, content, False, element.get_attributes(), element.page_id)
+                continue
+
             content += self.separator
 
-            if current_length + len(content) > self.merge_length:
-                # Try to find a good split point
+            if current_length + len(content) >= self.merge_length:
                 split_index = self._find_best_split_index(buffer, current_length)
-
                 if split_index == -1:
-                    # Try extending
-                    if self._is_terminator(content) and \
-                       (current_length + len(content) < self.merge_length * 1.2):
-                        buffer.append((code, content))
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
-                        buffer = []
-                        current_length = 0
-                        continue
-                    else:
-                        # Fallback: flush all
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
+                    if buffer:
+                        self._flush_buffer(buffer, page=current_page_id)
                         buffer = []
                         current_length = 0
                 else:
-                    # Split
                     to_flush = buffer[:split_index]
                     remaining = buffer[split_index:]
-
-                    self._flush_buffer(to_flush, oid)
-                    oid += 1
-
+                    self._flush_buffer(to_flush, page=current_page_id)
                     buffer = remaining
                     current_length = sum(len(b[1]) for b in buffer)
+                
+                # If still over limit, flush the whole buffer again
+                if current_length + len(content) >= self.merge_length and buffer:
+                    self._flush_buffer(buffer, page=current_page_id)
+                    buffer = []
+                    current_length = 0
 
             buffer.append((code, content))
             current_length += len(content)
 
         if buffer:
-            self._flush_buffer(buffer, oid)
+            self._flush_buffer(buffer, page=current_page_id)
 
         return self.originals
 
@@ -950,13 +1071,14 @@ class ElementHandlerMerge(ElementHandler):
             if len(alt_trans) == len(originals):
                 translations = alt_trans
 
-        # Handle count mismatches with simple sequential padding/merging.
-        # IMPORTANT: originals[i] becomes a dictionary key that add_translations
-        # looks up via exact string match. We MUST keep sequential order intact.
+        # Handle count mismatches with robust fallback
         offset = len(originals) - len(translations)
         if offset > 0:
-            # Fewer translations than originals — pad with None at end
-            translations += [None] * offset
+            # NON-ALIGNED: Fewer translations than originals
+            # Instead of putting None for some elements (which leaves them untranslated),
+            # we give the merged translation to ALL elements so nothing is left in original language.
+            merged_translations = '\n\n'.join(translations)
+            translations = [merged_translations] * len(originals)
         elif offset < 0:
             # More translations than originals — merge surplus into last slot
             last = len(originals) - 1
@@ -1133,14 +1255,12 @@ class ElementHandlerChapterAware(ElementHandlerMerge):
             # If this element is a chapter start, flush existing buffer
             # This ensures we don't merge across chapter boundaries
             if eid in chapter_starts and buffer:
-                 self._flush_buffer(buffer, oid)
-                 oid += 1
+                 self._flush_buffer(buffer, page=current_page_id)
                  buffer = []
                  current_length = 0
 
             element.set_registry(self.registry)
             element.set_id_start(global_counter)
-
             element.set_placeholder(self.placeholder)
             element.set_position(self.position)
             element.set_target_direction(self.target_direction)
@@ -1155,36 +1275,27 @@ class ElementHandlerChapterAware(ElementHandlerMerge):
             code = element.get_raw()
             content = element.get_content()
             global_counter = len(self.registry)
+            
+            # Additional safety: split single massive elements BEFORE buffering
+            if len(content) > self.merge_length:
+                sub_chunks = self._split_text(content, self.merge_length)
+                for sub_txt in sub_chunks[:-1]:
+                    self._add_original_entry(code, sub_txt, False, element.get_attributes(), element.page_id)
+                content = sub_chunks[-1]
+
             content += self.separator
 
             if current_length + len(content) > self.merge_length:
-                # Try to find a good split point
                 split_index = self._find_best_split_index(buffer, current_length)
-
                 if split_index == -1:
-                    # Try extending
-                    if self._is_terminator(content) and \
-                       (current_length + len(content) < self.merge_length * 1.2):
-                        buffer.append((code, content))
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
-                        buffer = []
-                        current_length = 0
-                        continue
-                    else:
-                        # Fallback: flush all
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
+                    if buffer:
+                        self._flush_buffer(buffer, page=current_page_id)
                         buffer = []
                         current_length = 0
                 else:
-                    # Split
                     to_flush = buffer[:split_index]
                     remaining = buffer[split_index:]
-
-                    self._flush_buffer(to_flush, oid)
-                    oid += 1
-
+                    self._flush_buffer(to_flush, page=current_page_id)
                     buffer = remaining
                     current_length = sum(len(b[1]) for b in buffer)
 
@@ -1192,55 +1303,40 @@ class ElementHandlerChapterAware(ElementHandlerMerge):
             current_length += len(content)
 
         if buffer:
-            self._flush_buffer(buffer, oid)
+            self._flush_buffer(buffer, page=current_page_id)
 
         return self.originals
 
 
 class ElementHandlerPerFile(ElementHandlerMerge):
-    """Chunking handler that groups elements by their source XHTML file.
-    
-    This creates one chunk per XHTML file in the original EPUB structure,
-    which naturally respects the book's file-based organization (typically chapters).
-    If a file exceeds the max length, it falls back to sentence-based splitting.
-    """
+    """Chunking handler that groups elements by their source XHTML file."""
     
     def __init__(self, placeholder, separator, position):
         super().__init__(placeholder, separator, position)
-        self.merge_length = 30000  # Higher default since we're grouping by file
-        self.current_page_id = None
+        self.merge_length = 30000 
 
     def prepare_original(self, elements):
-        oid = 0
+        self.originals = []
         buffer = []
         current_length = 0
-        
-        # Global registry for this batch
+        current_page = None
         self.registry = {}
         global_counter = 0
-        
-        # Track current page (XHTML file)
-        current_page = None
 
         for eid, element in enumerate(elements):
             self.elements[eid] = element
             if element.ignored:
                 continue
             
-            # Check if we're moving to a new XHTML file
             element_page = getattr(element, 'page_id', None)
             if element_page != current_page and buffer:
-                # Flush current buffer when switching files
-                self._flush_buffer(buffer, oid)
-                oid += 1
+                self._flush_buffer(buffer, page=current_page)
                 buffer = []
                 current_length = 0
             
             current_page = element_page
-            
             element.set_registry(self.registry)
             element.set_id_start(global_counter)
-
             element.set_placeholder(self.placeholder)
             element.set_position(self.position)
             element.set_target_direction(self.target_direction)
@@ -1255,67 +1351,61 @@ class ElementHandlerPerFile(ElementHandlerMerge):
             code = element.get_raw()
             content = element.get_content()
             global_counter = len(self.registry)
+            
+            # Hard limit split BEFORE buffering
+            if len(content) > self.merge_length:
+                sub_chunks = self._split_text(content, self.merge_length)
+                for sub_txt in sub_chunks[:-1]:
+                    self._add_original_entry(code, sub_txt, False, element.get_attributes(), element.page_id)
+                content = sub_chunks[-1]
+
             content += self.separator
 
-            # Check if adding this element exceeds the max length
-            if current_length + len(content) > self.merge_length:
-                # Try to find a good split point within the current file
+            if current_length + len(content) >= self.merge_length:
                 split_index = self._find_best_split_index(buffer, current_length)
-
                 if split_index == -1:
-                    # Try extending slightly if this ends a sentence
-                    if self._is_terminator(content) and \
-                       (current_length + len(content) < self.merge_length * 1.2):
-                        buffer.append((code, content))
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
-                        buffer = []
-                        current_length = 0
-                        continue
-                    else:
-                        # Fallback: flush all and start new chunk within same file
-                        self._flush_buffer(buffer, oid)
-                        oid += 1
+                    if buffer:
+                        self._flush_buffer(buffer, page=current_page)
                         buffer = []
                         current_length = 0
                 else:
-                    # Split at sentence boundary
                     to_flush = buffer[:split_index]
                     remaining = buffer[split_index:]
-
-                    self._flush_buffer(to_flush, oid)
-                    oid += 1
-
+                    self._flush_buffer(to_flush, page=current_page)
                     buffer = remaining
                     current_length = sum(len(b[1]) for b in buffer)
+                
+                # If still over limit (e.g. single massive item), flush the whole buffer again
+                if current_length + len(content) >= self.merge_length and buffer:
+                    self._flush_buffer(buffer, page=current_page)
+                    buffer = []
+                    current_length = 0
 
             buffer.append((code, content))
             current_length += len(content)
 
-        # Flush remaining buffer
         if buffer:
-            self._flush_buffer(buffer, oid)
+            self._flush_buffer(buffer, page=current_page)
 
         return self.originals
 
 
-def get_element_handler(placeholder, separator, direction, chunking_method=None):
-    config = get_config()
+def get_element_handler(placeholder, separator, direction, chunking_method=None, config=None):
+    if config is None:
+        config = get_config()
+        
     position_alias = {'before': 'above', 'after': 'below'}
     position = config.get('translation_position', 'below')
     position = position_alias.get(position) or position
     
     # LLM engines that support advanced chunking methods
-    LLM_ENGINES = ['Gemini', 'ChatGPT', 'Claude', 'ChatGPT(Azure)']
+    LLM_ENGINES = ['Gemini', 'ChatGPT', 'Claude', 'ChatGPT(Azure)', 'Ollama', 'OpenAI']
     current_engine = config.get('translate_engine', '')
     is_llm_engine = any(llm in (current_engine or '') for llm in LLM_ENGINES)
     
     # Determine chunking method
     if chunking_method is None:
         chunking_method = config.get('chunking_method', 'standard')
-        # Legacy compatibility: if merge_enabled but no chunking_method set
-        if chunking_method == 'standard' and config.get('merge_enabled'):
-            chunking_method = 'merge'
     
     # Chapter-aware and per_file are only available for LLM engines
     # For NMT engines, fall back to 'merge'
@@ -1327,17 +1417,24 @@ def get_element_handler(placeholder, separator, direction, chunking_method=None)
         handler = ElementHandlerPerFile(placeholder, separator, position)
     elif chunking_method == 'chapter_aware':
         handler = ElementHandlerChapterAware(placeholder, separator, position)
-    elif chunking_method == 'merge' or config.get('merge_enabled'):
+    elif chunking_method == 'merge':
         handler = ElementHandlerMerge(placeholder, separator, position)
-        handler.set_merge_length(config.get('merge_length'))
     else:
         handler = ElementHandler(placeholder, separator, position)
 
+    # Use specific limits ONLY if Character Merge is explicitly enabled in UI
+    # Otherwise, keep the handler's intrinsic defaults (e.g. 30k for Per-File, 15k for Chapter-Aware)
+    if config.get('merge_enabled', False):
+        handler.set_merge_length(config.get('merge_length') or 4000)
+    # else: Standard/Per-File/ChapterAware stay at their class-defined defaults
+
     handler.set_target_direction(direction)
     column_gap = config.get('column_gap')
-    gap_type = column_gap.get('_type')
-    if gap_type is not None and gap_type in column_gap.keys():
-        handler.set_column_gap((gap_type, column_gap.get(gap_type)))
+    if column_gap:
+        gap_type = column_gap.get('_type')
+        if gap_type is not None and gap_type in column_gap.keys():
+            handler.set_column_gap((gap_type, column_gap.get(gap_type)))
+            
     handler.set_original_color(config.get('original_color'))
     handler.set_translation_color(config.get('translation_color'))
     handler.load_remove_rules(

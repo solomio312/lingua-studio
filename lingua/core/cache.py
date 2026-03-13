@@ -314,10 +314,23 @@ class TranslationCache:
             'DELETE FROM cache WHERE id IN (%s)' % placeholders, tuple(ids))
         self.connection.commit()
 
-    def close(self):
-        self.cursor.close()
+    def clear(self):
+        """Clear all content from the cache table (used before fresh extraction)."""
+        self.cursor.execute('DELETE FROM cache')
         self.connection.commit()
-        self.connection.close()
+
+    def close(self):
+        try:
+            if hasattr(self, 'cursor') and self.cursor:
+                self.cursor.close()
+            if hasattr(self, 'connection') and self.connection:
+                try:
+                    self.connection.commit()
+                except:
+                    pass
+                self.connection.close()
+        except:
+            pass
 
     def destroy(self):
         self.close()
