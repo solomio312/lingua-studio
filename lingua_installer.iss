@@ -19,11 +19,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Normal Build (Folder-based)
-Source: "dist\Lingua\*"; DestDir: "{app}"; Flags: igonreversion recursesubdirs createallsubdirs
+Source: "dist\Lingua\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Lingua"; Filename: "{app}\Lingua.exe"
 Name: "{commondesktop}\Lingua"; Filename: "{app}\Lingua.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Lingua.exe"; Description: "{cm:LaunchProgram,Lingua}"; Flags: nowait postinstall skipfsentry
+Filename: "{app}\Lingua.exe"; Description: "{cm:LaunchProgram,Lingua}"; Flags: nowait postinstall skipifsilent
