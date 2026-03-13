@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lingua"
+version = "1.0.0a1"
+description = "Professional ebook translation studio for Windows"
+requires-python = ">=3.11"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "ManuX"}
+]
+dependencies = [
+    "PySide6>=6.6",
+    "httpx>=0.27",
+    "ebooklib>=0.18",
+    "lxml>=5.0",
+    "appdirs>=1.4",
+    "babel>=2.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "pytest-httpx>=0.30",
+]
+build = [
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+lingua = "lingua.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

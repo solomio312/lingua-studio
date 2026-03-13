@@ -1,0 +1,537 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="eng">
+  <head>
+    <meta content="d28115e3-b690-4b2d-a1fc-4dc2b0d97042" name="dtb:uid"/>
+    <meta content="4" name="dtb:depth"/>
+    <meta content="calibre (4.23.0)" name="dtb:generator"/>
+    <meta content="0" name="dtb:totalPageCount"/>
+    <meta content="0" name="dtb:maxPageNumber"/>
+  </head>
+  <docTitle>
+    <text>The Weirdest People in the World</text>
+  </docTitle>
+  <navMap>
+    <navPoint class="chapter" id="num_1" playOrder="1">
+      <navLabel>
+        <text>Title Page</text>
+      </navLabel>
+      <content src="text/part0001.html"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_2" playOrder="1">
+      <navLabel>
+        <text>About the Author</text>
+      </navLabel>
+      <content src="text/part0003.html#2RHM0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_3" playOrder="2">
+      <navLabel>
+        <text>By the Same Author</text>
+      </navLabel>
+      <content src="text/part0004.html#3Q280-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_4" playOrder="3">
+      <navLabel>
+        <text>Dedication</text>
+      </navLabel>
+      <content src="text/part0005.html#4OIQ0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_5" playOrder="4">
+      <navLabel>
+        <text>Preface</text>
+      </navLabel>
+      <content src="text/part0006.html#5N3C0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_6" playOrder="5">
+      <navLabel>
+        <text>Prelude: Your Brain Has Been Modified</text>
+      </navLabel>
+      <content src="text/part0007.html#6LJU0-9c85db5280234c8790e9a03be338e605"/>
+      <navPoint class="chapter" id="num_7" playOrder="2">
+        <navLabel>
+          <text>What God Wants</text>
+        </navLabel>
+        <content src="text/part0007.html#wei0004958"/>
+      </navPoint>
+      <navPoint class="chapter" id="num_8" playOrder="3">
+        <navLabel>
+          <text>The Histories of Religions, Biologies, and Psychologies</text>
+        </navLabel>
+        <content src="text/part0007.html#wei0004987"/>
+      </navPoint>
+    </navPoint>
+    <navPoint class="chapter" id="num_9" playOrder="8">
+      <navLabel>
+        <text>Part I: The Evolution of Societies and Psychologies</text>
+      </navLabel>
+      <content src="text/part0008_split_000.html#7K4G0-9c85db5280234c8790e9a03be338e605"/>
+      <navPoint class="chapter" id="num_10" playOrder="9">
+        <navLabel>
+          <text>1. WEIRD Psychology</text>
+        </navLabel>
+        <content src="text/part0009.html#8IL20-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_11" playOrder="4">
+          <navLabel>
+            <text>Really, Who Are You?</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005017"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_12" playOrder="5">
+          <navLabel>
+            <text>Marshmallows Come to Those Who Wait</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005067"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_13" playOrder="6">
+          <navLabel>
+            <text>UN Diplomats Get Parking Tickets</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005079"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_14" playOrder="7">
+          <navLabel>
+            <text>Obsessed with Intentions</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005117"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_15" playOrder="8">
+          <navLabel>
+            <text>Missing the Forest</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005136"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_16" playOrder="9">
+          <navLabel>
+            <text>The Rest of the Iceberg</text>
+          </navLabel>
+          <content src="text/part0009.html#wei0005145"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_17" playOrder="16">
+        <navLabel>
+          <text>2. Making a Cultural Species</text>
+        </navLabel>
+        <content src="text/part0010.html#9H5K0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_18" playOrder="10">
+          <navLabel>
+            <text>Evolved to Learn</text>
+          </navLabel>
+          <content src="text/part0010.html#wei0000014"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_19" playOrder="11">
+          <navLabel>
+            <text>Evolving Societies</text>
+          </navLabel>
+          <content src="text/part0010.html#wei0000032"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_20" playOrder="12">
+          <navLabel>
+            <text>Avenues into Your Mind</text>
+          </navLabel>
+          <content src="text/part0010.html#wei0000078"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_21" playOrder="20">
+        <navLabel>
+          <text>3. Clans, States, and Why You Can’t Get Here from There</text>
+        </navLabel>
+        <content src="text/part0011_split_000.html#AFM60-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_22" playOrder="13">
+          <navLabel>
+            <text>How Ilahita Got Big</text>
+          </navLabel>
+          <content src="text/part0011_split_000.html#wei0000101"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_23" playOrder="14">
+          <navLabel>
+            <text>When, How, and Why Did Societies Scale Up?</text>
+          </navLabel>
+          <content src="text/part0011_split_002.html#wei0000152"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_24" playOrder="15">
+          <navLabel>
+            <text>Getting to Premodern States</text>
+          </navLabel>
+          <content src="text/part0011_split_002.html#wei0000187"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_25" playOrder="16">
+          <navLabel>
+            <text>Going End Around</text>
+          </navLabel>
+          <content src="text/part0011_split_002.html#wei0000214"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_26" playOrder="25">
+        <navLabel>
+          <text>4. The Gods Are Watching. Behave!</text>
+        </navLabel>
+        <content src="text/part0012.html#BE6O0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_27" playOrder="17">
+          <navLabel>
+            <text>Moralizing Gods and Contingent Afterlives</text>
+          </navLabel>
+          <content src="text/part0012.html#wei0000249"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_28" playOrder="18">
+          <navLabel>
+            <text>The Evolution of Gods and Rituals</text>
+          </navLabel>
+          <content src="text/part0012.html#wei0000284"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_29" playOrder="19">
+          <navLabel>
+            <text>Hell, Free Will, and Moral Universalism</text>
+          </navLabel>
+          <content src="text/part0012.html#wei0000304"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_30" playOrder="20">
+          <navLabel>
+            <text>Persuasive Martyrs and Boring Rituals</text>
+          </navLabel>
+          <content src="text/part0012.html#wei0000313"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_31" playOrder="21">
+          <navLabel>
+            <text>The Launchpad</text>
+          </navLabel>
+          <content src="text/part0012.html#wei0000320"/>
+        </navPoint>
+      </navPoint>
+    </navPoint>
+    <navPoint class="chapter" id="num_32" playOrder="31">
+      <navLabel>
+        <text>Part II: The Origins of WEIRD People</text>
+      </navLabel>
+      <content src="text/part0013_split_000.html#CCNA0-9c85db5280234c8790e9a03be338e605"/>
+      <navPoint class="chapter" id="num_33" playOrder="32">
+        <navLabel>
+          <text>5. WEIRD Families</text>
+        </navLabel>
+        <content src="text/part0014.html#DB7S0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_34" playOrder="22">
+          <navLabel>
+            <text>Dissolving the Traditional Family</text>
+          </navLabel>
+          <content src="text/part0014.html#wei0000351"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_35" playOrder="23">
+          <navLabel>
+            <text>The Carolingians, Manorialism, and the European Marriage Pattern</text>
+          </navLabel>
+          <content src="text/part0014.html#wei0000493"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_36" playOrder="24">
+          <navLabel>
+            <text>Downstream Transformations</text>
+          </navLabel>
+          <content src="text/part0014.html#wei0000510"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_37" playOrder="36">
+        <navLabel>
+          <text>6. Psychological Differences, Families, and the Church</text>
+        </navLabel>
+        <content src="text/part0015_split_000.html#E9OE0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_38" playOrder="25">
+          <navLabel>
+            <text>Kinship Intensity and Psychology</text>
+          </navLabel>
+          <content src="text/part0015_split_000.html#wei0000526"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_39" playOrder="26">
+          <navLabel>
+            <text>The Church Altered Kinship and Changed Psychology</text>
+          </navLabel>
+          <content src="text/part0015_split_000.html#wei0000630"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_40" playOrder="27">
+          <navLabel>
+            <text>Opening the Floodgates</text>
+          </navLabel>
+          <content src="text/part0015_split_002.html#wei0000644"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_41" playOrder="40">
+        <navLabel>
+          <text>7. Europe and Asia</text>
+        </navLabel>
+        <content src="text/part0016.html#F8900-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_42" playOrder="28">
+          <navLabel>
+            <text>The Church’s Footprints</text>
+          </navLabel>
+          <content src="text/part0016.html#wei0000704"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_43" playOrder="29">
+          <navLabel>
+            <text>Psychological Differences Within China and India</text>
+          </navLabel>
+          <content src="text/part0016.html#wei0000745"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_44" playOrder="30">
+          <navLabel>
+            <text>Fertile Ground</text>
+          </navLabel>
+          <content src="text/part0016.html#wei0000773"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_45" playOrder="44">
+        <navLabel>
+          <text>8. WEIRD Monogamy</text>
+        </navLabel>
+        <content src="text/part0017.html#G6PI0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_46" playOrder="31">
+          <navLabel>
+            <text>A “Peculiar” Institution</text>
+          </navLabel>
+          <content src="text/part0017.html#wei0000811"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_47" playOrder="32">
+          <navLabel>
+            <text>Polygyny’s Math Problem</text>
+          </navLabel>
+          <content src="text/part0017.html#wei0000828"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_48" playOrder="33">
+          <navLabel>
+            <text>A Testosterone Suppression System</text>
+          </navLabel>
+          <content src="text/part0017.html#wei0000840"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_49" playOrder="34">
+          <navLabel>
+            <text>Trust, Teamwork, and Crime</text>
+          </navLabel>
+          <content src="text/part0017.html#wei0000866"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_50" playOrder="35">
+          <navLabel>
+            <text>Putting the Pieces Together</text>
+          </navLabel>
+          <content src="text/part0017.html#wei0000892"/>
+        </navPoint>
+      </navPoint>
+    </navPoint>
+    <navPoint class="chapter" id="num_51" playOrder="50">
+      <navLabel>
+        <text>Part III: New Institutions, New Psychologies</text>
+      </navLabel>
+      <content src="text/part0018_split_000.html#H5A40-9c85db5280234c8790e9a03be338e605"/>
+      <navPoint class="chapter" id="num_52" playOrder="51">
+        <navLabel>
+          <text>9. Of Commerce and Cooperation</text>
+        </navLabel>
+        <content src="text/part0019.html#I3QM0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_53" playOrder="36">
+          <navLabel>
+            <text>Market Integration and Impersonal Prosociality</text>
+          </navLabel>
+          <content src="text/part0019.html#wei0000923"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_54" playOrder="37">
+          <navLabel>
+            <text>“No Hui, No Market Towns”</text>
+          </navLabel>
+          <content src="text/part0019.html#wei0000965"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_55" playOrder="38">
+          <navLabel>
+            <text>The Commercial and Urban Revolutions</text>
+          </navLabel>
+          <content src="text/part0019.html#wei0000986"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_56" playOrder="39">
+          <navLabel>
+            <text>Round Up</text>
+          </navLabel>
+          <content src="text/part0019.html#wei0001022"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_57" playOrder="56">
+        <navLabel>
+          <text>10. Domesticating the Competition</text>
+        </navLabel>
+        <content src="text/part0020.html#J2B80-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_58" playOrder="40">
+          <navLabel>
+            <text>War, Religion, and Psychology</text>
+          </navLabel>
+          <content src="text/part0020.html#wei0001045"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_59" playOrder="41">
+          <navLabel>
+            <text>Europeans Made War, and War Made Them WEIRDer</text>
+          </navLabel>
+          <content src="text/part0020.html#wei0001066"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_60" playOrder="42">
+          <navLabel>
+            <text>Taming Intergroup Conflict</text>
+          </navLabel>
+          <content src="text/part0020.html#wei0001089"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_61" playOrder="43">
+          <navLabel>
+            <text>When and Why?</text>
+          </navLabel>
+          <content src="text/part0020.html#wei0001120"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_62" playOrder="44">
+          <navLabel>
+            <text>Harnessing the Power of Competition</text>
+          </navLabel>
+          <content src="text/part0020.html#wei0001144"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_63" playOrder="62">
+        <navLabel>
+          <text>11. Market Mentalities</text>
+        </navLabel>
+        <content src="text/part0021.html#K0RQ0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_64" playOrder="45">
+          <navLabel>
+            <text>How Work Became Virtuous</text>
+          </navLabel>
+          <content src="text/part0021.html#wei0001187"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_65" playOrder="46">
+          <navLabel>
+            <text>Be Yourself: The Origins of WEIRD Personalities</text>
+          </navLabel>
+          <content src="text/part0021.html#wei0001227"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_66" playOrder="47">
+          <navLabel>
+            <text>It’s Big, but How Big?</text>
+          </navLabel>
+          <content src="text/part0021.html#wei0001265"/>
+        </navPoint>
+      </navPoint>
+    </navPoint>
+    <navPoint class="chapter" id="num_67" playOrder="66">
+      <navLabel>
+        <text>Part IV: Birthing the Modern World</text>
+      </navLabel>
+      <content src="text/part0022_split_000.html#KVCC0-9c85db5280234c8790e9a03be338e605"/>
+      <navPoint class="chapter" id="num_68" playOrder="67">
+        <navLabel>
+          <text>12. Law, Science, and Religion</text>
+        </navLabel>
+        <content src="text/part0023.html#LTSU0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_69" playOrder="48">
+          <navLabel>
+            <text>Universal Laws, Conflicting Principles, and Individual Rights</text>
+          </navLabel>
+          <content src="text/part0023.html#wei0001291"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_70" playOrder="49">
+          <navLabel>
+            <text>Representative Governments and Democracy</text>
+          </navLabel>
+          <content src="text/part0023.html#wei0001316"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_71" playOrder="50">
+          <navLabel>
+            <text>The WEIRDest Religion</text>
+          </navLabel>
+          <content src="text/part0023.html#wei0001345"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_72" playOrder="51">
+          <navLabel>
+            <text>Dark Matter or Enlightenment?</text>
+          </navLabel>
+          <content src="text/part0023.html#wei0001382"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_73" playOrder="72">
+        <navLabel>
+          <text>13. Escape Velocity</text>
+        </navLabel>
+        <content src="text/part0024_split_000.html#MSDG0-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_74" playOrder="52">
+          <navLabel>
+            <text>Wiring Up the Collective Brain</text>
+          </navLabel>
+          <content src="text/part0024_split_002.html#wei0001424"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_75" playOrder="53">
+          <navLabel>
+            <text>More Inventive?</text>
+          </navLabel>
+          <content src="text/part0024_split_002.html#wei0001482"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_76" playOrder="54">
+          <navLabel>
+            <text>Psychology and Innovation in the Modern World</text>
+          </navLabel>
+          <content src="text/part0024_split_002.html#wei0001492"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_77" playOrder="55">
+          <navLabel>
+            <text>Escaping the Trap</text>
+          </navLabel>
+          <content src="text/part0024_split_002.html#wei0001496"/>
+        </navPoint>
+      </navPoint>
+      <navPoint class="chapter" id="num_78" playOrder="77">
+        <navLabel>
+          <text>14. The Dark Matter of History</text>
+        </navLabel>
+        <content src="text/part0025.html#NQU20-9c85db5280234c8790e9a03be338e605"/>
+        <navPoint class="chapter" id="num_79" playOrder="56">
+          <navLabel>
+            <text>Guns, Germs, and Other Factors</text>
+          </navLabel>
+          <content src="text/part0025.html#wei0001539"/>
+        </navPoint>
+        <navPoint class="chapter" id="num_80" playOrder="57">
+          <navLabel>
+            <text>Globalization and Its Discontents</text>
+          </navLabel>
+          <content src="text/part0025.html#wei0001570"/>
+        </navPoint>
+      </navPoint>
+    </navPoint>
+    <navPoint class="chapter" id="num_81" playOrder="80">
+      <navLabel>
+        <text>Appendix A. Milestones in the Marriage and Family Program</text>
+      </navLabel>
+      <content src="text/part0026.html#OPEK0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_82" playOrder="81">
+      <navLabel>
+        <text>Appendix B. Additional Plots</text>
+      </navLabel>
+      <content src="text/part0027.html#PNV60-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_83" playOrder="82">
+      <navLabel>
+        <text>Appendix C. The Psychological Impacts of Relational and Residential Mobility</text>
+      </navLabel>
+      <content src="text/part0028.html#QMFO0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_84" playOrder="83">
+      <navLabel>
+        <text>Notes</text>
+      </navLabel>
+      <content src="text/part0029_split_000.html#RL0A0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_85" playOrder="84">
+      <navLabel>
+        <text>Bibliography</text>
+      </navLabel>
+      <content src="text/part0030_split_000.html#SJGS0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_86" playOrder="85">
+      <navLabel>
+        <text>Index</text>
+      </navLabel>
+      <content src="text/part0031_split_000.html#TI1E0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+    <navPoint class="chapter" id="num_87" playOrder="86">
+      <navLabel>
+        <text>Copyright</text>
+      </navLabel>
+      <content src="text/part0033.html#VF2I0-9c85db5280234c8790e9a03be338e605"/>
+    </navPoint>
+  </navMap>
+</ncx>

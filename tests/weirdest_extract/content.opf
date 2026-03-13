@@ -1,0 +1,235 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uuid_id" version="2.0">
+  <metadata xmlns:calibre="http://calibre.kovidgoyal.net/2009/metadata" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:opf="http://www.idpf.org/2007/opf" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <meta name="cover" content="cover"/>
+    <dc:rights>All rights reserved.</dc:rights>
+    <dc:creator opf:file-as="Henrich, Joseph" opf:role="aut">Joseph Henrich</dc:creator>
+    <dc:publisher>Penguin Books Ltd</dc:publisher>
+    <dc:contributor opf:role="bkp">calibre (4.23.0) [https://calibre-ebook.com]</dc:contributor>
+    <meta name="calibre:title_sort" content="Weirdest People in the World, The"/>
+    <dc:title>The Weirdest People in the World</dc:title>
+    <dc:language>en</dc:language>
+    <meta name="calibre:timestamp" content="2022-11-03T10:46:34.081000+00:00"/>
+    <dc:date>2020-09-09T18:30:00+00:00</dc:date>
+    <dc:identifier opf:scheme="ISBN">9781846147975</dc:identifier>
+    <dc:identifier opf:scheme="MOBI-ASIN">B0848CLB9P</dc:identifier>
+    <dc:identifier id="uuid_id" opf:scheme="uuid">d28115e3-b690-4b2d-a1fc-4dc2b0d97042</dc:identifier>
+    <dc:identifier opf:scheme="calibre">d28115e3-b690-4b2d-a1fc-4dc2b0d97042</dc:identifier>
+    <meta content="horizontal-lr" name="primary-writing-mode"/>
+  </metadata>
+  <manifest>
+    <item href="cover.jpeg" id="cover" media-type="image/jpeg"/>
+    <item href="titlepage.xhtml" id="titlepage" media-type="application/xhtml+xml"/>
+    <item href="text/part0000.html" id="id82" media-type="application/xhtml+xml"/>
+    <item href="text/part0001.html" id="id83" media-type="application/xhtml+xml"/>
+    <item href="text/part0002.html" id="id84" media-type="application/xhtml+xml"/>
+    <item href="text/part0003.html" id="id85" media-type="application/xhtml+xml"/>
+    <item href="text/part0004.html" id="id86" media-type="application/xhtml+xml"/>
+    <item href="text/part0005.html" id="id87" media-type="application/xhtml+xml"/>
+    <item href="text/part0006.html" id="id88" media-type="application/xhtml+xml"/>
+    <item href="text/part0007.html" id="id89" media-type="application/xhtml+xml"/>
+    <item href="text/part0008_split_000.html" id="id902" media-type="application/xhtml+xml"/>
+    <item href="text/part0008_split_001.html" id="id901" media-type="application/xhtml+xml"/>
+    <item href="text/part0009.html" id="id91" media-type="application/xhtml+xml"/>
+    <item href="text/part0010.html" id="id92" media-type="application/xhtml+xml"/>
+    <item href="text/part0011_split_000.html" id="id933" media-type="application/xhtml+xml"/>
+    <item href="text/part0011_split_001.html" id="id932" media-type="application/xhtml+xml"/>
+    <item href="text/part0011_split_002.html" id="id931" media-type="application/xhtml+xml"/>
+    <item href="text/part0012.html" id="id94" media-type="application/xhtml+xml"/>
+    <item href="text/part0013_split_000.html" id="id952" media-type="application/xhtml+xml"/>
+    <item href="text/part0013_split_001.html" id="id951" media-type="application/xhtml+xml"/>
+    <item href="text/part0014.html" id="id96" media-type="application/xhtml+xml"/>
+    <item href="text/part0015_split_000.html" id="id973" media-type="application/xhtml+xml"/>
+    <item href="text/part0015_split_001.html" id="id972" media-type="application/xhtml+xml"/>
+    <item href="text/part0015_split_002.html" id="id971" media-type="application/xhtml+xml"/>
+    <item href="text/part0016.html" id="id98" media-type="application/xhtml+xml"/>
+    <item href="text/part0017.html" id="id99" media-type="application/xhtml+xml"/>
+    <item href="text/part0018_split_000.html" id="id1002" media-type="application/xhtml+xml"/>
+    <item href="text/part0018_split_001.html" id="id1001" media-type="application/xhtml+xml"/>
+    <item href="text/part0019.html" id="id101" media-type="application/xhtml+xml"/>
+    <item href="text/part0020.html" id="id102" media-type="application/xhtml+xml"/>
+    <item href="text/part0021.html" id="id103" media-type="application/xhtml+xml"/>
+    <item href="text/part0022_split_000.html" id="id1042" media-type="application/xhtml+xml"/>
+    <item href="text/part0022_split_001.html" id="id1041" media-type="application/xhtml+xml"/>
+    <item href="text/part0023.html" id="id105" media-type="application/xhtml+xml"/>
+    <item href="text/part0024_split_000.html" id="id1063" media-type="application/xhtml+xml"/>
+    <item href="text/part0024_split_001.html" id="id1062" media-type="application/xhtml+xml"/>
+    <item href="text/part0024_split_002.html" id="id1061" media-type="application/xhtml+xml"/>
+    <item href="text/part0025.html" id="id107" media-type="application/xhtml+xml"/>
+    <item href="text/part0026.html" id="id108" media-type="application/xhtml+xml"/>
+    <item href="text/part0027.html" id="id109" media-type="application/xhtml+xml"/>
+    <item href="text/part0028.html" id="id110" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_000.html" id="id11116" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_001.html" id="id11115" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_002.html" id="id11114" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_003.html" id="id11113" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_004.html" id="id11112" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_005.html" id="id11111" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_006.html" id="id11110" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_007.html" id="id1119" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_008.html" id="id1118" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_009.html" id="id1117" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_010.html" id="id1116" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_011.html" id="id1115" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_012.html" id="id1114" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_013.html" id="id1113" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_014.html" id="id1112" media-type="application/xhtml+xml"/>
+    <item href="text/part0029_split_015.html" id="id1111" media-type="application/xhtml+xml"/>
+    <item href="text/part0030_split_000.html" id="id1122" media-type="application/xhtml+xml"/>
+    <item href="text/part0030_split_001.html" id="id1121" media-type="application/xhtml+xml"/>
+    <item href="text/part0031_split_000.html" id="id1132" media-type="application/xhtml+xml"/>
+    <item href="text/part0031_split_001.html" id="id1131" media-type="application/xhtml+xml"/>
+    <item href="text/part0032_split_000.html" id="id1142" media-type="application/xhtml+xml"/>
+    <item href="text/part0032_split_001.html" id="id1141" media-type="application/xhtml+xml"/>
+    <item href="text/part0033.html" id="id115" media-type="application/xhtml+xml"/>
+    <item href="images/00004.gif" id="id4" media-type="image/gif"/>
+    <item href="images/00005.gif" id="id5" media-type="image/gif"/>
+    <item href="images/00007.gif" id="id7" media-type="image/gif"/>
+    <item href="images/00008.gif" id="id8" media-type="image/gif"/>
+    <item href="images/00009.gif" id="id9" media-type="image/gif"/>
+    <item href="images/00010.gif" id="id10" media-type="image/gif"/>
+    <item href="images/00011.gif" id="id11" media-type="image/gif"/>
+    <item href="images/00012.gif" id="id12" media-type="image/gif"/>
+    <item href="images/00013.gif" id="id13" media-type="image/gif"/>
+    <item href="images/00014.gif" id="id14" media-type="image/gif"/>
+    <item href="images/00015.gif" id="id15" media-type="image/gif"/>
+    <item href="images/00016.gif" id="id16" media-type="image/gif"/>
+    <item href="images/00017.gif" id="id17" media-type="image/gif"/>
+    <item href="images/00018.gif" id="id18" media-type="image/gif"/>
+    <item href="images/00019.gif" id="id19" media-type="image/gif"/>
+    <item href="images/00020.gif" id="id20" media-type="image/gif"/>
+    <item href="images/00021.gif" id="id21" media-type="image/gif"/>
+    <item href="images/00022.gif" id="id22" media-type="image/gif"/>
+    <item href="images/00023.gif" id="id23" media-type="image/gif"/>
+    <item href="images/00024.gif" id="id24" media-type="image/gif"/>
+    <item href="images/00025.gif" id="id25" media-type="image/gif"/>
+    <item href="images/00026.gif" id="id26" media-type="image/gif"/>
+    <item href="images/00027.gif" id="id27" media-type="image/gif"/>
+    <item href="images/00028.gif" id="id28" media-type="image/gif"/>
+    <item href="images/00029.gif" id="id29" media-type="image/gif"/>
+    <item href="images/00030.gif" id="id30" media-type="image/gif"/>
+    <item href="images/00031.gif" id="id31" media-type="image/gif"/>
+    <item href="images/00032.gif" id="id32" media-type="image/gif"/>
+    <item href="images/00033.gif" id="id33" media-type="image/gif"/>
+    <item href="images/00034.gif" id="id34" media-type="image/gif"/>
+    <item href="images/00035.gif" id="id35" media-type="image/gif"/>
+    <item href="images/00036.gif" id="id36" media-type="image/gif"/>
+    <item href="images/00037.gif" id="id37" media-type="image/gif"/>
+    <item href="images/00039.gif" id="id39" media-type="image/gif"/>
+    <item href="images/00040.gif" id="id40" media-type="image/gif"/>
+    <item href="images/00041.gif" id="id41" media-type="image/gif"/>
+    <item href="images/00042.gif" id="id42" media-type="image/gif"/>
+    <item href="images/00043.gif" id="id43" media-type="image/gif"/>
+    <item href="images/00044.gif" id="id44" media-type="image/gif"/>
+    <item href="images/00045.gif" id="id45" media-type="image/gif"/>
+    <item href="images/00046.gif" id="id46" media-type="image/gif"/>
+    <item href="images/00047.gif" id="id47" media-type="image/gif"/>
+    <item href="images/00049.gif" id="id49" media-type="image/gif"/>
+    <item href="images/00050.gif" id="id50" media-type="image/gif"/>
+    <item href="images/00051.gif" id="id51" media-type="image/gif"/>
+    <item href="images/00052.gif" id="id52" media-type="image/gif"/>
+    <item href="images/00053.gif" id="id53" media-type="image/gif"/>
+    <item href="images/00054.gif" id="id54" media-type="image/gif"/>
+    <item href="images/00055.gif" id="id55" media-type="image/gif"/>
+    <item href="images/00056.gif" id="id56" media-type="image/gif"/>
+    <item href="images/00057.gif" id="id57" media-type="image/gif"/>
+    <item href="images/00058.gif" id="id58" media-type="image/gif"/>
+    <item href="images/00059.gif" id="id59" media-type="image/gif"/>
+    <item href="images/00060.gif" id="id60" media-type="image/gif"/>
+    <item href="images/00061.gif" id="id61" media-type="image/gif"/>
+    <item href="images/00062.gif" id="id62" media-type="image/gif"/>
+    <item href="images/00063.gif" id="id63" media-type="image/gif"/>
+    <item href="images/00064.gif" id="id64" media-type="image/gif"/>
+    <item href="images/00065.gif" id="id65" media-type="image/gif"/>
+    <item href="images/00066.gif" id="id66" media-type="image/gif"/>
+    <item href="images/00067.gif" id="id67" media-type="image/gif"/>
+    <item href="images/00068.gif" id="id68" media-type="image/gif"/>
+    <item href="images/00069.gif" id="id69" media-type="image/gif"/>
+    <item href="images/00070.gif" id="id70" media-type="image/gif"/>
+    <item href="images/00071.gif" id="id71" media-type="image/gif"/>
+    <item href="images/00072.gif" id="id72" media-type="image/gif"/>
+    <item href="images/00073.gif" id="id73" media-type="image/gif"/>
+    <item href="images/00075.gif" id="id75" media-type="image/gif"/>
+    <item href="images/00076.gif" id="id76" media-type="image/gif"/>
+    <item href="images/00001.jpeg" id="id1" media-type="image/jpeg"/>
+    <item href="images/00002.jpeg" id="id2" media-type="image/jpeg"/>
+    <item href="images/00006.jpeg" id="id6" media-type="image/jpeg"/>
+    <item href="images/00038.jpeg" id="id38" media-type="image/jpeg"/>
+    <item href="images/00048.jpeg" id="id48" media-type="image/jpeg"/>
+    <item href="images/00074.jpeg" id="id74" media-type="image/jpeg"/>
+    <item href="images/00077.jpeg" id="id77" media-type="image/jpeg"/>
+    <item href="page_styles.css" id="page_css" media-type="text/css"/>
+    <item href="stylesheet.css" id="css" media-type="text/css"/>
+    <item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="titlepage"/>
+    <itemref idref="id82"/>
+    <itemref idref="id83"/>
+    <itemref idref="id84"/>
+    <itemref idref="id85"/>
+    <itemref idref="id86"/>
+    <itemref idref="id87"/>
+    <itemref idref="id88"/>
+    <itemref idref="id89"/>
+    <itemref idref="id902"/>
+    <itemref idref="id901"/>
+    <itemref idref="id91"/>
+    <itemref idref="id92"/>
+    <itemref idref="id933"/>
+    <itemref idref="id932"/>
+    <itemref idref="id931"/>
+    <itemref idref="id94"/>
+    <itemref idref="id952"/>
+    <itemref idref="id951"/>
+    <itemref idref="id96"/>
+    <itemref idref="id973"/>
+    <itemref idref="id972"/>
+    <itemref idref="id971"/>
+    <itemref idref="id98"/>
+    <itemref idref="id99"/>
+    <itemref idref="id1002"/>
+    <itemref idref="id1001"/>
+    <itemref idref="id101"/>
+    <itemref idref="id102"/>
+    <itemref idref="id103"/>
+    <itemref idref="id1042"/>
+    <itemref idref="id1041"/>
+    <itemref idref="id105"/>
+    <itemref idref="id1063"/>
+    <itemref idref="id1062"/>
+    <itemref idref="id1061"/>
+    <itemref idref="id107"/>
+    <itemref idref="id108"/>
+    <itemref idref="id109"/>
+    <itemref idref="id110"/>
+    <itemref idref="id11116"/>
+    <itemref idref="id11115"/>
+    <itemref idref="id11114"/>
+    <itemref idref="id11113"/>
+    <itemref idref="id11112"/>
+    <itemref idref="id11111"/>
+    <itemref idref="id11110"/>
+    <itemref idref="id1119"/>
+    <itemref idref="id1118"/>
+    <itemref idref="id1117"/>
+    <itemref idref="id1116"/>
+    <itemref idref="id1115"/>
+    <itemref idref="id1114"/>
+    <itemref idref="id1113"/>
+    <itemref idref="id1112"/>
+    <itemref idref="id1111"/>
+    <itemref idref="id1122"/>
+    <itemref idref="id1121"/>
+    <itemref idref="id1132"/>
+    <itemref idref="id1131"/>
+    <itemref idref="id1142"/>
+    <itemref idref="id1141"/>
+    <itemref idref="id115"/>
+  </spine>
+  <guide>
+    <reference href="titlepage.xhtml" title="Cover" type="cover"/>
+    <reference href="text/part0006.html#sec-preface_001" title="Begin Reading" type="text"/>
+    <reference href="text/part0002.html#toc01" title="Table of Contents" type="toc"/>
+  </guide>
+</package>
