@@ -37,20 +37,20 @@ jobs:
       run: |
         iscc lingua_installer.iss
 
-    - name: Upload Folder Build
+    - name: Upload Folder Build (Portable)
       uses: actions/upload-artifact@v4
       with:
-        name: Lingua-Windows-Folder
+        name: Lingua-Windows-Portable-Folder
         path: dist/Lingua/
 
-    - name: Upload Standalone EXE
+    - name: Upload Standalone EXE (Portable)
       uses: actions/upload-artifact@v4
       with:
-        name: Lingua-Windows-Standalone
+        name: Lingua-Windows-Portable-Single-EXE
         path: dist/Lingua_SingleFile.exe
 
     - name: Upload Installer
       uses: actions/upload-artifact@v4
       with:
-        name: Lingua-Windows-Installer
+        name: Lingua-Windows-Setup-Installer
         path: dist/Lingua_Installer_v1.1.0.exe
