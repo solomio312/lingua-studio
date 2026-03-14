@@ -513,32 +513,30 @@ class GeminiTranslate(GenAI):
         return ''.join([part['text'] for part in parts])
 
     def _parse_stream(self, response):
-        empty_count = 0
         self.last_finish_reason = None  # Reset at start
-        while True:
+        
+        # httpx response.iter_lines() is a generator yielding strings (if text) or bytes
+        for line in response.iter_lines():
             if self.cancel_request and self.cancel_request():
-                break
-            try:
-                line = response.readline().decode('utf-8').strip()
-            except IncompleteRead:
-                continue
-            except Exception as e:
-                raise Exception(
-                    _('Can not parse returned response. Raw data: {}')
-                    .format(str(e)))
-            
-            # Handle empty lines - break after too many consecutive empty lines
+                from ..core.exception import TranslationCanceled
+                raise TranslationCanceled("Translation canceled by user.")
+
             if not line:
-                empty_count += 1
-                if empty_count > 10:
-                    break
                 continue
-            empty_count = 0
+            
+            # httpx.Response.iter_lines yields strings
+            line = line.strip()
             
             if line.startswith('data:'):
                 try:
-                    item = json.loads(line.split('data: ')[1])
-                    candidate = item.get('candidates', [{}])[0]
+                    # Handle SSE format: "data: {json}"
+                    json_str = line.split('data: ', 1)[1] if 'data: ' in line else line.split('data:', 1)[1]
+                    item = json.loads(json_str)
+                    candidates = item.get('candidates', [])
+                    if not candidates:
+                        continue
+                        
+                    candidate = candidates[0]
                     
                     # Check if 'content' exists - some chunks may not have it
                     content = candidate.get('content')
@@ -558,12 +556,6 @@ class GeminiTranslate(GenAI):
                     finish_reason = candidate.get('finishReason')
                     if finish_reason:
                         self.last_finish_reason = finish_reason
-                        if finish_reason == 'SAFETY':
-                            print(f"[DEBUG] Gemini stopped due to SAFETY filter")
-                        elif finish_reason == 'MAX_TOKENS':
-                            print(f"[DEBUG] Gemini stopped due to MAX_TOKENS limit")
-                        elif finish_reason == 'RECITATION':
-                            print(f"[DEBUG] Gemini stopped due to RECITATION detection")
                         # Break on any finishReason
                         break
                         

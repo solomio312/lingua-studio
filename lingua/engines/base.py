@@ -208,21 +208,24 @@ class Base:
 
             print(f"DEBUG ENGINE: Requesting {method} {endpoint} (chars: {len(text)})")
             
-            response = request(
+            if self.stream:
+                return self._stream_translate(endpoint, body, headers, method)
+
+            response_text = request(
                 url=endpoint,
                 data=body,
                 headers=headers, 
                 method=method,
                 timeout=self.request_timeout, 
                 proxy_uri=self.proxy_uri,
-                raw_object=self.stream)
-
+                raw_object=False)
+            
             # Check after request
             if self.cancel_request and self.cancel_request():
                 from ..core.exception import TranslationCanceled
                 raise TranslationCanceled("Translation canceled by user.")
             
-            result = self.get_result(response)
+            result = self.get_result(response_text)
             if not result or not result.strip():
                 print(f"DEBUG ENGINE: WARNING: Result is EMPTY for input: {text[:50]}...")
             return result
@@ -230,13 +233,25 @@ class Base:
             error_message = traceback_error()
             if isinstance(e, httpx.HTTPStatusError):
                 error_message += '\n\n' + e.response.text
-            elif not self.stream and 'response' in locals():
-                error_message += '\n\n' + str(response)
-            if self.need_swap_api_key(error_message) and self.swap_api_key():
-                return self.translate(text)
             raise UnexpectedResult(
                 'Can not parse returned response. Raw data: %s'
                 % ('\n\n' + error_message))
+
+    def _stream_translate(self, endpoint, body, headers, method):
+        """Helper to manage the streaming response context."""
+        stream_ctx = request(
+            url=endpoint,
+            data=body,
+            headers=headers, 
+            method=method,
+            timeout=self.request_timeout, 
+            proxy_uri=self.proxy_uri,
+            raw_object=True)
+            
+        with stream_ctx as response:
+            response.raise_for_status()
+            # get_result for streaming engines returns a generator
+            yield from self.get_result(response)
 
     def get_endpoint(self):
         return self.endpoint

@@ -24,7 +24,7 @@ from .workers import TranslationWorker, ExportWorker, ExtractionWorker
 from lingua.ui.widgets.editor import SourceTextEditor, TranslationEditor, CodeEditor
 from lingua.ui.widgets.table import WorkspaceTable
 from lingua.ui.widgets.cache_dialog import CacheDialog
-from lingua.core.i18n import _ as _tr
+from lingua.core.i18n import _
 from lingua.ui.widgets.gated_widgets import GatedButton, get_pro_icon_text, show_pro_required_dialog
 from lingua.core.license import LicenseManager
 import lingua
@@ -56,11 +56,9 @@ class TranslationWorkspace(QWidget):
         self.review_mode = review_mode
         self.book_title = title or (os.path.basename(epub_path) if epub_path != "REVIEW_MODE" else "Legacy Cache")
         self.elements = []
-        self.active_trans_thread = None
-        self.trans_worker = None
-        self.active_export_thread = None
-        self.export_worker = None
         self.config = get_config() # Ensure config is loaded
+        self._threads = []
+        self._workers = []
 
         # Determine uid from path or filename
         if self.review_mode:
@@ -119,10 +117,10 @@ class TranslationWorkspace(QWidget):
         # 1. Slim Header (Back + Title)
         # -----------------------------------------------------------------
         header = QHBoxLayout()
-        back_btn = QPushButton(_tr('Back'))
+        back_btn = QPushButton(_('Back'))
         back_btn.setFixedWidth(70)
         back_btn.setStyleSheet("font-size: 10px; font-weight: bold; padding: 2px;")
-        back_btn.setToolTip(_tr("Return to the main screen (dashboard)"))
+        back_btn.setToolTip(_("Return to the main screen (dashboard)"))
         back_btn.clicked.connect(self.back_requested.emit)
         header.addWidget(back_btn)
 
@@ -130,9 +128,9 @@ class TranslationWorkspace(QWidget):
         self.title_label.setObjectName('title')
         header.addWidget(self.title_label, 1)
 
-        self.status_label = QLabel(_tr('Ready'))
-        self.status_label.setObjectName('subtitle')
-        header.addWidget(self.status_label)
+        self.header_status = QLabel(_('Ready'))
+        self.header_status.setObjectName('subtitle')
+        header.addWidget(self.header_status)
         layout.addLayout(header)
 
         # -----------------------------------------------------------------
@@ -146,7 +144,7 @@ class TranslationWorkspace(QWidget):
         settings_layout.setSpacing(12)
 
         # A. Cache Status
-        self.cache_btn = QPushButton(_tr("Enabled"))
+        self.cache_btn = QPushButton(_("Enabled"))
         self.cache_btn.setObjectName("enabled_btn")
         self.cache_btn.setMinimumWidth(80)
         self.cache_btn.setCheckable(True)
@@ -155,11 +153,11 @@ class TranslationWorkspace(QWidget):
         self.cache_btn.clicked.connect(self._on_cache_toggle)
         self.cache_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.cache_btn.customContextMenuRequested.connect(self._on_cache_context_menu)
-        settings_layout.addWidget(self._create_control_group(_tr("Cache Status:"), self.cache_btn))
+        settings_layout.addWidget(self._create_control_group(_("Cache Status:"), self.cache_btn))
 
         # B. Translation Engine
         self.engine_selector = QComboBox()
-        self.engine_selector.setToolTip(_tr("Choose the translation engine (e.g. Google, Gemini, DeepL)"))
+        self.engine_selector.setToolTip(_("Choose the translation engine (e.g. Google, Gemini, DeepL)"))
         from lingua.engines import builtin_engines
         for eng in builtin_engines:
             self.engine_selector.addItem(eng.name, eng.name)
@@ -168,11 +166,11 @@ class TranslationWorkspace(QWidget):
         idx = self.engine_selector.findData(current_eng)
         if idx >= 0: self.engine_selector.setCurrentIndex(idx)
         self.engine_selector.currentIndexChanged.connect(lambda i: self.config.set('translate_engine', self.engine_selector.itemData(i)))
-        settings_layout.addWidget(self._create_control_group(_tr("Translation Engine:"), self.engine_selector))
+        settings_layout.addWidget(self._create_control_group(_("Translation Engine:"), self.engine_selector))
 
         # C. Source Language
         self.src_lang_selector = QComboBox()
-        self.src_lang_selector.setToolTip(_tr("Original language of the book (Auto detect recommended)"))
+        self.src_lang_selector.setToolTip(_("Original language of the book (Auto detect recommended)"))
         self.src_lang_selector.setEditable(False)
         langs = ["Auto detect", "English", "Romanian", "French", "German", "Spanish", "Italian", "Chinese", "Japanese", "Korean", "Russian", "Portuguese", "Dutch", "Greek", "Turkish"]
         self.src_lang_selector.addItems(langs)
@@ -180,41 +178,41 @@ class TranslationWorkspace(QWidget):
         idx = self.src_lang_selector.findText(src_val)
         if idx >= 0: self.src_lang_selector.setCurrentIndex(idx)
         self.src_lang_selector.currentIndexChanged.connect(lambda i: self.config.set('source_lang', self.src_lang_selector.currentText()))
-        settings_layout.addWidget(self._create_control_group(_tr("Source.Lang:"), self.src_lang_selector))
+        settings_layout.addWidget(self._create_control_group(_("Source.Lang:"), self.src_lang_selector))
 
         # D. Target Language
         self.tgt_lang_selector = QComboBox()
-        self.tgt_lang_selector.setToolTip(_tr("Language you want to translate the book into"))
+        self.tgt_lang_selector.setToolTip(_("Language you want to translate the book into"))
         self.tgt_lang_selector.setEditable(False)
         self.tgt_lang_selector.addItems(langs[1:]) # Skip "Auto"
         idx = self.tgt_lang_selector.findText(self.config.get('target_lang', 'Romanian'))
         if idx >= 0: self.tgt_lang_selector.setCurrentIndex(idx)
         self.tgt_lang_selector.currentIndexChanged.connect(lambda i: self.config.set('target_lang', self.tgt_lang_selector.currentText()))
-        settings_layout.addWidget(self._create_control_group(_tr("Target.Lang:"), self.tgt_lang_selector))
+        settings_layout.addWidget(self._create_control_group(_("Target.Lang:"), self.tgt_lang_selector))
 
         # E. Translation Style
         self.style_selector = QComboBox()
-        self.style_selector.setToolTip(_tr("Select the stylistic tone for translation (Literary, Technical, etc.)"))
-        self.style_map = {_tr(k): v for k, v in TRANSLATION_STYLES.items()}
+        self.style_selector.setToolTip(_("Select the stylistic tone for translation (Literary, Technical, etc.)"))
+        self.style_map = {_(k): v for k, v in TRANSLATION_STYLES.items()}
         self.style_selector.addItems(list(self.style_map.keys()))
         
         # Load current style (convert internal key back to friendly name if needed)
         current_internal = self.config.get('current_translation_style', 'literary')
         friendly_styles = {v: k for k, v in self.style_map.items()}
-        current_friendly = friendly_styles.get(current_internal, _tr('Literary (Fiction)'))
+        current_friendly = friendly_styles.get(current_internal, _('Literary (Fiction)'))
         
         idx = self.style_selector.findText(current_friendly)
         if idx >= 0: self.style_selector.setCurrentIndex(idx)
         self.style_selector.currentIndexChanged.connect(self._on_style_changed)
-        settings_layout.addWidget(self._create_control_group(_tr("Translation Style:"), self.style_selector))
+        settings_layout.addWidget(self._create_control_group(_("Translation Style:"), self.style_selector))
 
         # F. Context Cache
-        ctx_text = "⚡ " + _tr("Prompt Cache")
-        ctx_btn = GatedButton(ctx_text, _tr("Gemini Context Cache"), self)
+        ctx_text = "⚡ " + _("Prompt Cache")
+        ctx_btn = GatedButton(ctx_text, _("Gemini Context Cache"), self)
         ctx_btn.setMinimumWidth(110)
-        ctx_btn.setToolTip(_tr("Manage memory/context for Gemini (Pro Feature)"))
+        ctx_btn.setToolTip(_("Manage memory/context for Gemini (Pro Feature)"))
         ctx_btn.clicked.connect(self._on_manage_context_cache)
-        settings_layout.addWidget(self._create_control_group(_tr("API Cache"), ctx_btn))
+        settings_layout.addWidget(self._create_control_group(_("API Cache"), ctx_btn))
 
 
         # G. Custom Ebook Title
@@ -224,43 +222,43 @@ class TranslationWorkspace(QWidget):
         title_row.setSpacing(4)
         
         self.custom_title_enabled = QCheckBox()
-        self.custom_title_enabled.setToolTip(_tr("Check to use a custom title in the exported EPUB file"))
+        self.custom_title_enabled.setToolTip(_("Check to use a custom title in the exported EPUB file"))
         self.custom_title_enabled.setFixedWidth(24)
         self.custom_title_input = QLineEdit()
-        self.custom_title_input.setToolTip(_tr("Enter the desired title for the translated book"))
-        self.custom_title_input.setPlaceholderText(_tr("Enter custom title..."))
+        self.custom_title_input.setToolTip(_("Enter the desired title for the translated book"))
+        self.custom_title_input.setPlaceholderText(_("Enter custom title..."))
         self.custom_title_input.setText(self.book_title or "")
         self.custom_title_input.setMinimumWidth(150)
         
         title_row.addWidget(self.custom_title_enabled)
         title_row.addWidget(self.custom_title_input)
         
-        settings_layout.addWidget(self._create_control_group(_tr("Custom Ebook Title (Optional):"), title_container))
+        settings_layout.addWidget(self._create_control_group(_("Custom Ebook Title (Optional):"), title_container))
 
         # H. After Completion
-        after_box = QCheckBox(_tr("Shutdown PC when done"))
-        after_box.setToolTip(_tr("Check to automatically shut down the computer after export is done"))
+        after_box = QCheckBox(_("Shutdown PC when done"))
+        after_box.setToolTip(_("Check to automatically shut down the computer after export is done"))
         after_box.setStyleSheet("color: #a1a1aa; font-size: 11px;")
-        settings_layout.addWidget(self._create_control_group(_tr("After Completion"), after_box))
+        settings_layout.addWidget(self._create_control_group(_("After Completion"), after_box))
 
         # I. Output Ebook
         output_box = QHBoxLayout()
         output_box.setSpacing(4)
         self.format_selector = QComboBox()
-        self.format_selector.setToolTip(_tr("Choose the final export format (EPUB, PDF etc.)"))
+        self.format_selector.setToolTip(_("Choose the final export format (EPUB, PDF etc.)"))
         self.format_selector.addItems(["EPUB", "SRT", "TXT", "DOCX", "PDF", "AZW3", "MOBI"])
         self.format_selector.setMinimumWidth(65)
-        self.export_btn = QPushButton(_tr("Output"))
+        self.export_btn = QPushButton(_("Output"))
         self.export_btn.setObjectName("output_btn")
         self.export_btn.setMinimumWidth(80)
-        self.export_btn.setToolTip(_tr("Exportă cartea tradusă în formatul selectat (ex: EPUB)"))
+        self.export_btn.setToolTip(_("Exportă cartea tradusă în formatul selectat (ex: EPUB)"))
         self.export_btn.clicked.connect(self._on_export_clicked)
         output_box.addWidget(self.format_selector)
         output_box.addWidget(self.export_btn)
         
         out_container = QWidget()
         out_container.setLayout(output_box)
-        settings_layout.addWidget(self._create_control_group(_tr("Output"), out_container))
+        settings_layout.addWidget(self._create_control_group(_("Output"), out_container))
 
         settings_layout.addStretch()
         
@@ -330,28 +328,28 @@ class TranslationWorkspace(QWidget):
         from PySide6.QtWidgets import QMenu
         from PySide6.QtGui import QAction
         
-        self.translate_btn = QPushButton(_tr('Translate Options ▾'))
+        self.translate_btn = QPushButton(_('Translate Options ▾'))
         self.translate_btn.setObjectName('primary')
-        self.translate_btn.setToolTip(_tr("Global options to start mass translation"))
+        self.translate_btn.setToolTip(_("Global options to start mass translation"))
         self.translate_btn.setFixedHeight(30)
         self.translate_btn.setFixedWidth(170)
         
         menu = QMenu(self.translate_btn)
-        act_all = QAction(_tr("📚 Translate All Untranslated"), self)
+        act_all = QAction(_("📚 Translate All Untranslated"), self)
         act_all.triggered.connect(lambda: self._start_translation(mode='all'))
         menu.addAction(act_all)
-        act_sel = QAction(_tr("✅ Translate Selected"), self)
+        act_sel = QAction(_("✅ Translate Selected"), self)
         act_sel.triggered.connect(lambda: self._start_translation(mode='selected'))
         menu.addAction(act_sel)
-        act_one = QAction(_tr("⏬ Translate From Current"), self)
+        act_one = QAction(_("⏬ Translate From Current"), self)
         act_one.triggered.connect(lambda: self._start_translation(mode='from_current'))
         menu.addAction(act_one)
         self.translate_btn.setMenu(menu)
         inter_bar.addWidget(self.translate_btn)
 
-        self.stop_btn = QPushButton(_tr('Stop Translation'))
+        self.stop_btn = QPushButton(_('Stop Translation'))
         self.stop_btn.setObjectName('danger_btn')
-        self.stop_btn.setToolTip(_tr("Immediately stop the active translation process"))
+        self.stop_btn.setToolTip(_("Immediately stop the active translation process"))
         self.stop_btn.setFixedHeight(30)
         self.stop_btn.setMinimumWidth(120) # Increased width to prevent truncation ('rans)
         self.stop_btn.setEnabled(False)
@@ -360,17 +358,17 @@ class TranslationWorkspace(QWidget):
 
         # Search/Filter Row (Moved to the left per user request)
         self.filter_category = QComboBox()
-        self.filter_category.setToolTip(_tr("Filter displayed rows by status"))
-        self.filter_category.addItem(_tr('All'), 'all')
-        self.filter_category.addItem(_tr('Untranslated'), 'untranslated')
-        self.filter_category.addItem(_tr('Translated'), 'translated')
-        self.filter_category.addItem(_tr('Errors/Issues'), 'non_aligned')
+        self.filter_category.setToolTip(_("Filter displayed rows by status"))
+        self.filter_category.addItem(_('All'), 'all')
+        self.filter_category.addItem(_('Untranslated'), 'untranslated')
+        self.filter_category.addItem(_('Translated'), 'translated')
+        self.filter_category.addItem(_('Errors/Issues'), 'non_aligned')
         self.filter_category.currentIndexChanged.connect(self._apply_filters)
         self.filter_category.setFixedWidth(120)
         
         self.search_input = QLineEdit()
-        self.search_input.setToolTip(_tr("Search specific text in original or translated rows"))
-        self.search_input.setPlaceholderText(_tr('Search...'))
+        self.search_input.setToolTip(_("Search specific text in original or translated rows"))
+        self.search_input.setPlaceholderText(_('Search...'))
         self.search_input.setFixedWidth(150)
         self.search_input.textChanged.connect(self._apply_filters)
         
@@ -412,13 +410,13 @@ class TranslationWorkspace(QWidget):
         table_layout.addWidget(self.table, 1)
         
         table_toolbar = QHBoxLayout()
-        self.btn_delete = QPushButton("🗑 " + _tr("Delete"))
+        self.btn_delete = QPushButton("🗑 " + _("Delete"))
         self.btn_delete.setObjectName('danger_btn')
         self.btn_delete.setStyleSheet("font-size: 10px; padding: 2px 4px;")
-        self.btn_delete.setToolTip(_tr("Delete selected rows (Irreversible operation in table)"))
-        self.btn_detected_terms = QPushButton("🏷 " + _tr("Detected Terms"))
+        self.btn_delete.setToolTip(_("Delete selected rows (Irreversible operation in table)"))
+        self.btn_detected_terms = QPushButton("🏷 " + _("Detected Terms"))
         self.btn_detected_terms.setStyleSheet("font-size: 10px; padding: 2px 4px;")
-        self.btn_detected_terms.setToolTip(_tr("Show detected terms associated with selection for glossary"))
+        self.btn_detected_terms.setToolTip(_("Show detected terms associated with selection for glossary"))
         
         table_toolbar.addWidget(self.btn_delete)
         table_toolbar.addWidget(self.btn_detected_terms)
@@ -446,7 +444,7 @@ class TranslationWorkspace(QWidget):
         editor_layout.setSpacing(4)
         
         # --- Phase 8: Re-Chunk Panel (Moved to Review Tab for visibility) ---
-        self.rechunk_panel = QGroupBox(_tr('🔄 Re-Chunk Selected Rows'))
+        self.rechunk_panel = QGroupBox(_('🔄 Re-Chunk Selected Rows'))
         self.rechunk_panel.setObjectName('rechunkPanel')
         # Allow the panel to shrink
         self.rechunk_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
@@ -458,9 +456,9 @@ class TranslationWorkspace(QWidget):
         top_row = QHBoxLayout()
         bottom_row = QHBoxLayout()
 
-        self.btn_rechunk_merge = QPushButton(_tr('🔗 Merge Selected'))
+        self.btn_rechunk_merge = QPushButton(_('🔗 Merge Selected'))
         self.btn_rechunk_merge.setObjectName('output_btn')
-        self.btn_rechunk_merge.setToolTip(_tr('Merge 2-5 selected rows into one.'))
+        self.btn_rechunk_merge.setToolTip(_('Merge 2-5 selected rows into one.'))
         self.btn_rechunk_merge.clicked.connect(self._on_rechunk_merge)
         self.btn_rechunk_merge.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
         top_row.addWidget(self.btn_rechunk_merge)
@@ -468,9 +466,9 @@ class TranslationWorkspace(QWidget):
         # Add stretch between the two main action buttons
         top_row.addStretch()
 
-        self.btn_rechunk_resplit = QPushButton(_tr('🔄 Re-Split & Translate'))
+        self.btn_rechunk_resplit = QPushButton(_('🔄 Re-Split & Translate'))
         self.btn_rechunk_resplit.setObjectName('output_btn')
-        self.btn_rechunk_resplit.setToolTip(_tr('Re-split the selected row and re-translate the new chunks.'))
+        self.btn_rechunk_resplit.setToolTip(_('Re-split the selected row and re-translate the new chunks.'))
         self.btn_rechunk_resplit.clicked.connect(self._on_rechunk_resplit)
         self.btn_rechunk_resplit.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
         top_row.addWidget(self.btn_rechunk_resplit)
@@ -478,7 +476,7 @@ class TranslationWorkspace(QWidget):
         # Bottom row for split configuration
         bottom_row.addStretch()
 
-        lbl_method = QLabel(_tr('Split method:'))
+        lbl_method = QLabel(_('Split method:'))
         lbl_method.setObjectName('subtitle')
         lbl_method.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         bottom_row.addWidget(lbl_method)
@@ -490,7 +488,7 @@ class TranslationWorkspace(QWidget):
         self.rechunk_method.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
         bottom_row.addWidget(self.rechunk_method)
 
-        lbl_chars = QLabel(_tr('Max chars:'))
+        lbl_chars = QLabel(_('Max chars:'))
         lbl_chars.setObjectName('subtitle')
         lbl_chars.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         bottom_row.addWidget(lbl_chars)
@@ -513,25 +511,25 @@ class TranslationWorkspace(QWidget):
         # 0. Raw HTML Text
         self.raw_text = CodeEditor()
         self.raw_text.setReadOnly(True)
-        self.raw_text.setPlaceholderText(_tr('HTML Code/Raw Source...'))
+        self.raw_text.setPlaceholderText(_('HTML Code/Raw Source...'))
         self.editor_splitter.addWidget(self.raw_text)
         self.raw_text.hide()
         
         # 1. Original Text
         self.original_text = SourceTextEditor(self)
         self.original_text.setReadOnly(True)
-        self.original_text.setPlaceholderText(_tr('Select a row to see the original text...'))
+        self.original_text.setPlaceholderText(_('Select a row to see the original text...'))
         self.editor_splitter.addWidget(self.original_text)
         
         # 2. Translation Text
         self.translation_text = TranslationEditor(self)
-        self.translation_text.setPlaceholderText(_tr('Select a row to edit the translation...'))
+        self.translation_text.setPlaceholderText(_('Select a row to edit the translation...'))
         self.editor_splitter.addWidget(self.translation_text)
         
         # 3. Alignment Report (CP11.e)
         self.alignment_report = QPlainTextEdit()
         self.alignment_report.setReadOnly(True)
-        self.alignment_report.setPlaceholderText(_tr('Alignment report...'))
+        self.alignment_report.setPlaceholderText(_('Alignment report...'))
         self.alignment_report.setObjectName('logConsole')
         self.editor_splitter.addWidget(self.alignment_report)
         self.alignment_report.hide() # Hidden by default per user request
@@ -541,16 +539,16 @@ class TranslationWorkspace(QWidget):
         # Editor Toolbar
         from PySide6.QtWidgets import QRadioButton
         editor_toolbar = QHBoxLayout()
-        self.radio_untranslated = QRadioButton(_tr("Untranslated"))
+        self.radio_untranslated = QRadioButton(_("Untranslated"))
         self.radio_untranslated.setEnabled(False) # Indicator
-        self.check_allow_block = QCheckBox(_tr("Allow block replacement"))
-        self.check_allow_block.setToolTip(_tr("If checked, overwrites all text during massive operations"))
-        self.btn_save = QPushButton(_tr("Save"))
-        self.btn_save.setToolTip(_tr("Forcibly save manual changes in translated text"))
+        self.check_allow_block = QCheckBox(_("Allow block replacement"))
+        self.check_allow_block.setToolTip(_("If checked, overwrites all text during massive operations"))
+        self.btn_save = QPushButton(_("Save"))
+        self.btn_save.setToolTip(_("Forcibly save manual changes in translated text"))
         
-        self.btn_toggle_rechunk = QPushButton(_tr("🛠 Unelte Aliniere"))
+        self.btn_toggle_rechunk = QPushButton(_("🛠 Unelte Aliniere"))
         self.btn_toggle_rechunk.setCheckable(True)
-        self.btn_toggle_rechunk.setToolTip(_tr("Show/Hide the merge and split panel (Merge/Split)"))
+        self.btn_toggle_rechunk.setToolTip(_("Show/Hide the merge and split panel (Merge/Split)"))
         self.btn_toggle_rechunk.clicked.connect(self._on_toggle_rechunk)
         
         editor_toolbar.addWidget(self.radio_untranslated)
@@ -560,7 +558,7 @@ class TranslationWorkspace(QWidget):
         editor_toolbar.addWidget(self.btn_save)
         
         editor_layout.addLayout(editor_toolbar)
-        self.right_tabs.addTab(editor_pane, _tr("Review"))
+        self.right_tabs.addTab(editor_pane, _("Review"))
         
         # TAB 2: Log
         log_pane = QWidget()
@@ -570,7 +568,7 @@ class TranslationWorkspace(QWidget):
         self.log_text_edit.setReadOnly(True)
         self.log_text_edit.setObjectName('logConsole')
         log_layout.addWidget(self.log_text_edit)
-        self.right_tabs.addTab(log_pane, _tr("Log"))
+        self.right_tabs.addTab(log_pane, _("Log"))
         
         # TAB 3: Errors
         error_pane = QWidget()
@@ -580,7 +578,7 @@ class TranslationWorkspace(QWidget):
         self.error_text_edit.setReadOnly(True)
         self.error_text_edit.setObjectName('errorConsole')
         error_layout.addWidget(self.error_text_edit)
-        self.right_tabs.addTab(error_pane, _tr("Errors"))
+        self.right_tabs.addTab(error_pane, _("Errors"))
         
         self.main_splitter.addWidget(self.right_tabs)
         
@@ -675,7 +673,7 @@ class TranslationWorkspace(QWidget):
         if os.path.exists(CACHE_DIR):
             QDesktopServices.openUrl(QUrl.fromLocalFile(CACHE_DIR))
         else:
-            QMessageBox.warning(self, _tr("Attention"), f"Directorul de cache nu există: {CACHE_DIR}")
+            QMessageBox.warning(self, _("Attention"), f"Directorul de cache nu există: {CACHE_DIR}")
 
     def _on_manage_context_cache(self):
         """Show a dialog for managing session/context cache."""
@@ -690,11 +688,11 @@ class TranslationWorkspace(QWidget):
         self.rechunk_panel.setVisible(show)
         self.alignment_report.setVisible(show)
         if show:
-            self.btn_toggle_rechunk.setText(_tr("🛠 Ascunde Unelte"))
+            self.btn_toggle_rechunk.setText(_("🛠 Ascunde Unelte"))
             # Adjust splitter to give some space to the report
             self.editor_splitter.setSizes([200, 200, 100])
         else:
-            self.btn_toggle_rechunk.setText(_tr("🛠 Unelte Aliniere"))
+            self.btn_toggle_rechunk.setText(_("🛠 Unelte Aliniere"))
 
 
     def _on_style_changed(self):
@@ -702,7 +700,7 @@ class TranslationWorkspace(QWidget):
         friendly_text = self.style_selector.currentText()
         internal_key = self.style_map.get(friendly_text, 'literary')
         self.config.set('current_translation_style', internal_key)
-        self.status_label.setText(_tr('Style changed: {0}').format(friendly_text))
+        self.status_label.setText(_('Style changed: {0}').format(friendly_text))
 
     def _apply_filters(self):
         """Filter table rows based on category and search text."""
@@ -748,10 +746,10 @@ class TranslationWorkspace(QWidget):
         self._on_extraction_done(context)
         
         # Override ready status
-        self.status_label.setText(_tr("Review Mode (No EPUB)"))
+        self.status_label.setText(_("Review Mode (No EPUB)"))
         self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
         self.export_btn.setDisabled(True)
-        self.export_btn.setToolTip(_tr("Export is disabled in Review Mode (source EPUB missing)"))
+        self.export_btn.setToolTip(_("Export is disabled in Review Mode (source EPUB missing)"))
 
     def _start_extraction(self):
         """Extract EPUB in background thread."""
@@ -768,13 +766,15 @@ class TranslationWorkspace(QWidget):
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
 
-        self.status_label.setText(_tr("Extracting..."))
+        self._threads.append(thread)
+        self._workers.append(worker)
+
+        self.status_label.setText(_("Extracting..."))
         thread.start()
 
     def _on_extraction_done(self, context):
         """Called when ExtractionWorker finishes paragraph extraction."""
         print(f"DEBUG UI: _on_extraction_done received. Items: {len(context.get('paragraphs', []))}", flush=True)
-        self.status_label.setText(_tr('Ready'))
         self.context = context
         self.book = context.get('book')
         self.pages = context.get('pages')
@@ -785,7 +785,8 @@ class TranslationWorkspace(QWidget):
         self.table.populate(self.elements)
 
         self.count_label.setText(f'{len(self.elements)} paragraphs')
-        self.status_label.setText('Ready')
+        self.status_label.setText(_('Ready'))
+        self.header_status.setText(_('Ready'))
         self.translate_btn.setEnabled(True)
         self.export_btn.setEnabled(not self.review_mode)
         self.progress.setValue(0)
@@ -793,9 +794,10 @@ class TranslationWorkspace(QWidget):
         self._update_footer_stats()
 
     def _on_extraction_error(self, error_msg):
-        self.status_label.setText(_tr('Extraction failed'))
+        self.header_status.setText(_('Extraction failed'))
+        self.status_label.setText(_('Extraction failed'))
         self.error_text_edit.appendPlainText(f"EXTRACTION ERROR:\n{error_msg}\n")
-        QMessageBox.critical(self, _tr('Extraction Error'), error_msg)
+        QMessageBox.critical(self, _('Extraction Error'), error_msg)
 
     def _start_translation(self, mode='all'):
         """Start or Resume translation via background TranslationWorker."""
@@ -812,13 +814,13 @@ class TranslationWorkspace(QWidget):
             force = True
             if not selected_rows:
                 print("DEBUG APP: No selected rows", flush=True)
-                QMessageBox.warning(self, _tr("Attention"), _tr("No rows selected for translation!"))
+                QMessageBox.warning(self, _("Attention"), _("No rows selected for translation!"))
                 return
         elif mode == 'from_current':
             current_row = self.table.currentRow()
             if current_row < 0:
                 print("DEBUG APP: No current row", flush=True)
-                QMessageBox.warning(self, _tr("Attention"), _tr("No starting row selected!"))
+                QMessageBox.warning(self, _("Attention"), _("No starting row selected!"))
                 return
             untranslated = [p for p in self.elements[current_row:] if not p.translation and not p.ignored]
             force = False
@@ -828,7 +830,7 @@ class TranslationWorkspace(QWidget):
 
         if not untranslated:
             print("DEBUG APP: Untranslated array is empty!", flush=True)
-            QMessageBox.information(self, _tr("Translation"), _tr("All paragraphs in selection are already translated!"))
+            QMessageBox.information(self, _("Translation"), _("All paragraphs in selection are already translated!"))
             return
             
         print(f"DEBUG APP: Found {len(untranslated)} items. Starting worker thread!", flush=True)
@@ -836,7 +838,7 @@ class TranslationWorkspace(QWidget):
         # 1. UI Setup
         self.translate_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        self.status_label.setText(_tr('Translating {n} items...').format(n=len(untranslated)))
+        self.status_label.setText(_('Translating {n} items...').format(n=len(untranslated)))
         
         # Auto-switch to Log tab so user sees what is happening
         self.right_tabs.setCurrentIndex(1)
@@ -863,6 +865,8 @@ class TranslationWorkspace(QWidget):
             force=force
         )
         self.trans_worker.moveToThread(self.active_trans_thread)
+        self._threads.append(self.active_trans_thread)
+        self._workers.append(self.trans_worker)
 
         # --- 4. Connect Signals ---
         self.active_trans_thread.started.connect(self.trans_worker.run)
@@ -893,10 +897,10 @@ class TranslationWorkspace(QWidget):
         """Update progress bar safely from main thread."""
         self.progress.setValue(current)
         if current < total:
-            self.status_label.setText(_tr('Translating {n}/{t} items...').format(n=current+1, t=total))
+            self.status_label.setText(_('Translating {n}/{t} items...').format(n=current+1, t=total))
             self.status_label.setStyleSheet("color: #3b82f6; font-size: 11px; margin-left: 10px;")
         else:
-            self.status_label.setText(_tr('Finishing...'))
+            self.status_label.setText(_('Finishing...'))
 
     def _on_row_completed(self, paragraph, status):
         """Update a specific row in the table when translation arrives from background."""
@@ -941,16 +945,21 @@ class TranslationWorkspace(QWidget):
         print("DEBUG UI: _on_trans_finished called", flush=True)
         self.stop_btn.setEnabled(False)
         self.translate_btn.setEnabled(True)
-        
-        is_canc = getattr(self, 'trans_worker', None) and self.trans_worker._is_canceled
-        self.status_label.setText(_tr('Stopped') if is_canc else _tr('Ready'))
-        self.status_label.setStyleSheet("color: #10b981; font-weight: bold;" if not is_canc else "color: #ffaa00; font-weight: bold;")
         self.export_btn.setEnabled(True)
-        self.trans_worker = None # Clear reference
+        
+        # Check cancellation before clearing reference
+        is_canc = False
+        if hasattr(self, 'trans_worker') and self.trans_worker:
+            is_canc = self.trans_worker._is_canceled
+            self.trans_worker = None # Clear it now
+
+        self.status_label.setText(_('Stopped') if is_canc else _('Ready'))
+        self.status_label.setStyleSheet("color: #10b981; font-weight: bold;" if not is_canc else "color: #ffaa00; font-weight: bold;")
+        self._cleanup_tasks()
 
     def _stop_translation(self):
         """Stop translation by sending cancel signal to background worker."""
-        self.status_label.setText(_tr('Stopping... Please wait for current item.'))
+        self.status_label.setText(_('Stopping... Please wait for current item.'))
         self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
         self.stop_btn.setEnabled(False)
         self.translate_btn.setEnabled(False) # Prevent starting another while stopping
@@ -961,7 +970,7 @@ class TranslationWorkspace(QWidget):
         """Handle output button click — generic for multiple formats."""
         try:
             if not hasattr(self, 'cache') or not self.cache:
-                QMessageBox.warning(self, _tr("Error"), _tr("Cache is not active. Cannot export."))
+                QMessageBox.warning(self, _("Error"), _("Cache is not active. Cannot export."))
                 return
 
             selected_format = self.format_selector.currentText().upper().strip()
@@ -970,8 +979,8 @@ class TranslationWorkspace(QWidget):
             allowed_formats = ["EPUB", "SRT", "TXT", "DOCX", "PDF", "AZW3", "MOBI"]
             if selected_format not in allowed_formats:
                 QMessageBox.information(
-                    self, _tr("Format Not Supported"),
-                    _tr("Export to {fmt} is not implemented yet.").format(fmt=selected_format)
+                    self, _("Format Not Supported"),
+                    _("Export to {fmt} is not implemented yet.").format(fmt=selected_format)
                 )
                 return
 
@@ -1005,13 +1014,13 @@ class TranslationWorkspace(QWidget):
                     
                     output_path, _ext_filter = QFileDialog.getSaveFileName(
                         self, 
-                        _tr("Save Translated {fmt}").format(fmt=selected_format), 
+                        _("Save Translated {fmt}").format(fmt=selected_format), 
                         suggested_path, 
                         filter_str,
                         options=QFileDialog.DontUseNativeDialog
                     )
             except Exception as e:
-                QMessageBox.critical(self, _tr("Export Error"), _tr("Failed to prepare export: {err}").format(err=str(e)))
+                QMessageBox.critical(self, _("Export Error"), _("Failed to prepare export: {err}").format(err=str(e)))
                 return
 
             if not output_path:
@@ -1020,13 +1029,15 @@ class TranslationWorkspace(QWidget):
             # Lock UI
             self.export_btn.setEnabled(False)
             self.translate_btn.setEnabled(False)
-            self.status_label.setText(_tr('Exporting {fmt}...').format(fmt=selected_format))
+            self.status_label.setText(_('Exporting {fmt}...').format(fmt=selected_format))
             self.progress.setValue(0)
 
             # Start Export Worker
             self.active_export_thread = QThread(self)
             self.export_worker = ExportWorker(self.epub_path, output_path, self.cache, format=selected_format)
             self.export_worker.moveToThread(self.active_export_thread)
+            self._threads.append(self.active_export_thread)
+            self._workers.append(self.export_worker)
 
             self.active_export_thread.started.connect(self.export_worker.run)
             
@@ -1055,22 +1066,37 @@ class TranslationWorkspace(QWidget):
     def _on_export_error(self, error_msg):
         self.export_btn.setEnabled(True)
         self.translate_btn.setEnabled(True)
-        self.status_label.setText(_tr('Export Failed'))
+        self.status_label.setText(_('Export Failed'))
         self.error_text_edit.appendPlainText(f"EXPORT ERROR:\n{error_msg}\n")
-        QMessageBox.critical(self, _tr('Export Error'), _tr("An error occurred while generating the file:") + f"\n\n{error_msg}")
+        QMessageBox.critical(self, _('Export Error'), _("An error occurred while generating the file:") + f"\n\n{error_msg}")
+
+    def _cleanup_tasks(self):
+        """Prune finished threads and workers to keep memory clean but protect active ones."""
+        self._threads = [t for t in self._threads if t.isRunning()]
+        # Workers are trickier, but deleteLater usually handles it. 
+        # Pruning the list only keeps references to active ones.
+        active_workers = []
+        for w in self._workers:
+            try:
+                # If associated thread is gone, worker is likely gone too
+                if hasattr(w, 'thread') and w.thread() and w.thread().isRunning():
+                    active_workers.append(w)
+            except (RuntimeError, AttributeError):
+                pass
+        self._workers = active_workers
 
     def _on_export_done(self, output_path):
         self.export_btn.setEnabled(True)
         self.translate_btn.setEnabled(True)
-        self.status_label.setText(_tr('Export Complete'))
+        self.status_label.setText(_('Export Complete'))
         self.progress.setValue(100)
         
         from PySide6.QtWidgets import QMessageBox
         from lingua.core.utils import open_path
         
-        msg = _tr("The book has been successfully exported to:") + f"\n{output_path}\n\n" + _tr("Do you want to open the translated archive now?")
+        msg = _("The book has been successfully exported to:") + f"\n{output_path}\n\n" + _("Do you want to open the translated archive now?")
         reply = QMessageBox.question(
-            self, _tr('Export Finished'), msg,
+            self, _('Export Finished'), msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         
@@ -1110,20 +1136,20 @@ class TranslationWorkspace(QWidget):
         
         if can_merge:
             self.btn_rechunk_merge.setEnabled(True)
-            text_merge = _tr('🔗 Merge Selected')
+            text_merge = _('🔗 Merge Selected')
             self.btn_rechunk_merge.setText(f'{text_merge} ({count})')
             self.btn_rechunk_resplit.setEnabled(False)
             self.rechunk_method.setEnabled(False)
             self.rechunk_chars.setEnabled(False)
         elif can_split:
             self.btn_rechunk_merge.setEnabled(False)
-            self.btn_rechunk_merge.setText(_tr('🔗 Merge Selected'))
+            self.btn_rechunk_merge.setText(_('🔗 Merge Selected'))
             self.btn_rechunk_resplit.setEnabled(True)
             self.rechunk_method.setEnabled(True)
             self.rechunk_chars.setEnabled(True)
         else:
             self.btn_rechunk_merge.setEnabled(False)
-            self.btn_rechunk_merge.setText(_tr('🔗 Merge Selected'))
+            self.btn_rechunk_merge.setText(_('🔗 Merge Selected'))
             self.btn_rechunk_resplit.setEnabled(False)
             self.rechunk_method.setEnabled(False)
             self.rechunk_chars.setEnabled(False)
@@ -1154,7 +1180,7 @@ class TranslationWorkspace(QWidget):
     def _update_alignment_report(self, p):
         """Update the alignment report text area for the given paragraph."""
         if not p.translation:
-            self.alignment_report.setPlainText(_tr("Status: Untranslated"))
+            self.alignment_report.setPlainText(_("Status: Untranslated"))
             return
             
         # Get engine separator from config or default
@@ -1165,16 +1191,16 @@ class TranslationWorkspace(QWidget):
         
         details = p.alignment_details(separator)
         lines = []
-        lines.append(_tr("🔍 ALIGNMENT REPORT (Row {n})").format(n=p.row + 1))
+        lines.append(_("🔍 ALIGNMENT REPORT (Row {n})").format(n=p.row + 1))
         lines.append("-" * 30)
-        lines.append(_tr("Status: ✅ Aligned") if details['aligned'] else _tr("Status: ⚠️ Not Aligned"))
-        lines.append(_tr("Original Segments:") + f" {details['orig_count']}")
-        lines.append(_tr("Translated Segments:") + f" {details['trans_count']}")
+        lines.append(_("Status: ✅ Aligned") if details['aligned'] else _("Status: ⚠️ Not Aligned"))
+        lines.append(_("Original Segments:") + f" {details['orig_count']}")
+        lines.append(_("Translated Segments:") + f" {details['trans_count']}")
         
         if details['missing']:
-            lines.append(_tr("❌ Missing segments (index):") + f" {', '.join(map(str, details['missing']))}")
+            lines.append(_("❌ Missing segments (index):") + f" {', '.join(map(str, details['missing']))}")
         if details['suspicious']:
-            lines.append(_tr("🧐 Suspiciously short segments (index):") + f" {', '.join(map(str, details['suspicious']))}")
+            lines.append(_("🧐 Suspiciously short segments (index):") + f" {', '.join(map(str, details['suspicious']))}")
             
         self.alignment_report.setPlainText("\n".join(lines))
 
@@ -1205,7 +1231,7 @@ class TranslationWorkspace(QWidget):
         
         self.progress.setRange(0, len(paragraphs))
         self.progress.setValue(0)
-        self.status_label.setText(_tr("Translating {n} items...").format(n=len(paragraphs)))
+        self.status_label.setText(_("Translating {n} items...").format(n=len(paragraphs)))
         
         self.active_trans_thread.start()
 
@@ -1214,7 +1240,7 @@ class TranslationWorkspace(QWidget):
     def _on_align_requested(self, paragraph):
         """Open the alignment dialog for manual segment-level mapping."""
         if not LicenseManager.is_pro():
-            show_pro_required_dialog(self, _tr("Manual Alignment"))
+            show_pro_required_dialog(self, _("Manual Alignment"))
             return
 
         from lingua.core.translation import get_engine_class, get_translator
@@ -1235,7 +1261,7 @@ class TranslationWorkspace(QWidget):
         dlg = AlignmentDialog(self, paragraph, sep, cache=self.cache, translator=translator)
         if dlg.exec_():
             self.table.update_row(paragraph.row)
-            self.status_label.setText(_tr("Alignment saved for row {n}").format(n=paragraph.row + 1))
+            self.status_label.setText(_("Alignment saved for row {n}").format(n=paragraph.row + 1))
 
     def _on_delete_requested(self, paragraphs):
         """Delete selected paragraphs from the workspace and cache."""
@@ -1249,14 +1275,14 @@ class TranslationWorkspace(QWidget):
         
         # Re-populate table to reflect changes
         self.table.populate(self.elements)
-        self.status_label.setText(_tr("Deleted {n} rows.").format(n=len(paragraphs)))
+        self.status_label.setText(_("Deleted {n} rows.").format(n=len(paragraphs)))
 
     def _on_merge_requested(self, paragraphs):
         """Merge selected paragraphs into one."""
         if len(paragraphs) < 2: return
         
         if not hasattr(self, 'cache') or not self.cache:
-            QMessageBox.warning(self, _tr("Error"), _tr("Cache is not active. Cannot export.")) # Using existing key
+            QMessageBox.warning(self, _("Error"), _("Cache is not active. Cannot export.")) # Using existing key
             return
 
         paragraphs.sort(key=lambda p: p.row)
@@ -1304,41 +1330,102 @@ class TranslationWorkspace(QWidget):
         self.count_label.setText(f'{len(self.elements)} paragraphs')
 
     def _on_split_requested(self, paragraph):
-        """Split a row automatically by newline."""
+        """Handle right-click 'Split Current Row' action."""
         if not hasattr(self, 'cache') or not self.cache: return
+
+        # For right-click split, we use a sensible default (e.g. 500) if not specified 
+        # or we can use the value currently in the re-chunk panel
+        max_chars = self.rechunk_chars.value()
+        self._perform_smart_split(paragraph, max_chars)
+
+    def _perform_smart_split(self, p, max_chars):
+        """Reusable multi-tier splitting logic ported from advanced.py."""
+        import re
+        text = p.original
         
-        if '\n' in (paragraph.original or ''):
-            orig_parts = paragraph.original.split('\n')
-            raw_parts = paragraph.raw.split('\n') if paragraph.raw and '\n' in paragraph.raw else orig_parts
+        # Ported Multi-Tier Splitting Logic from advanced.py
+        segments = re.split(r'\n\s*\n', text)
+        if len(segments) < 2: 
+            segments = text.split('\n')
+        if len(segments) < 2: 
+            segments = re.split(r'(?<=[.!?])\s+', text)
+        if len(segments) < 2:
+            # Absolute fallback: hard split at max_chars
+            segments = []
+            for i in range(0, len(text), max_chars):
+                segments.append(text[i:i + max_chars])
+        
+        chunks = []
+        curr = []
+        curr_len = 0
+        for seg in segments:
+            if curr_len + len(seg) > max_chars and curr:
+                chunks.append('\n\n'.join(curr))
+                curr = [seg]
+                curr_len = len(seg)
+            else:
+                curr.append(seg)
+                curr_len += len(seg)
+        if curr: 
+            chunks.append('\n\n'.join(curr))
             
-            msg = _tr("I split the row into {n} segments (by newline). Translation must be redone on new chunks.").format(n=len(orig_parts))
-            QMessageBox.information(self, _tr("Split Performed"), msg)
+        # If only 1 chunk produced (e.g. one giant paragraph), force-split at sentence boundaries within it
+        if len(chunks) == 1 and len(chunks[0]) > max_chars:
+            big_text = chunks[0]
+            chunks = []
+            sentences = re.split(r'(?<=[.!?])\s+', big_text)
+            curr = []
+            curr_len = 0
+            for sentence in sentences:
+                if curr_len + len(sentence) > max_chars and curr:
+                    chunks.append(' '.join(curr))
+                    curr = [sentence]
+                    curr_len = len(sentence)
+                else:
+                    curr.append(sentence)
+                    curr_len += len(sentence)
+            if curr: 
+                chunks.append(' '.join(curr))
+
+        # Still just 1? Hard character split as last resort
+        if len(chunks) == 1 and len(chunks[0]) > max_chars:
+            big_text = chunks[0]
+            chunks = []
+            for i in range(0, len(big_text), max_chars):
+                chunks.append(big_text[i:i + max_chars])
+        
+        if len(chunks) <= 1:
+            QMessageBox.information(self, _("Split Requested"), _("No splitting was necessary (text is already small)."))
+            return
             
-            new_paragraphs = []
-            from lingua.core.cache import Paragraph
-            base_id = paragraph.id
+        from lingua.core.cache import Paragraph
+        new_paragraphs = []
+        for i, chunk in enumerate(chunks):
+            # Unique deterministic ID for split chunks (restored from backup)
+            nid = p.id + i + 20000
+            nmd5 = uid(f"{nid}{chunk}")
             
-            for i, (orig, raw) in enumerate(zip(orig_parts, raw_parts)):
-                if not orig.strip(): continue
-                nid = base_id + i + 10000
-                nmd5 = uid(f"{nid}{orig}")
-                # Creates a clean paragraph with no translation so we can re-translate
-                np = Paragraph(id=nid, md5=nmd5, raw=raw, original=orig, page=paragraph.page, attributes=paragraph.attributes)
-                new_paragraphs.append(np)
-                
-            if new_paragraphs:
-                self.cache.replace_paragraphs([paragraph.id], new_paragraphs)
-                
-                idx = paragraph.row
-                del self.elements[idx]
-                for p in reversed(new_paragraphs):
-                    self.elements.insert(idx, p)
-                    
-                self.table.populate(self.elements)
-                self.table.selectRow(idx)
-                self.count_label.setText(f'{len(self.elements)} paragraphs')
-        else:
-            QMessageBox.warning(self, _tr("Split Impossible"), _tr("This paragraph does not contain line breaks (Enter). Manual split will be added later."))
+            raw_chunk = chunk
+            # Simplified alignment for raw HTML
+            if p.raw and '<' in p.raw:
+                # We reuse the original logic for raw/original alignment if possible
+                pass
+
+            np = Paragraph(id=nid, md5=nmd5, raw=raw_chunk, original=chunk, page=p.page, attributes=p.attributes)
+            new_paragraphs.append(np)
+            
+        if self.cache:
+            self.cache.replace_paragraphs([p.id], new_paragraphs)
+            
+        idx = p.row
+        del self.elements[idx]
+        for item in reversed(new_paragraphs):
+            self.elements.insert(idx, item)
+            
+        self.table.populate(self.elements)
+        self.table.selectRow(idx)
+        self.status_label.setText(_("Row split into {n} chunks.").format(n=len(chunks)))
+        self.count_label.setText(f'{len(self.elements)} paragraphs')
 
     def _on_translation_edited(self):
         """Auto-save user edits from the right panel to the paragraph and cache."""
@@ -1393,12 +1480,12 @@ class TranslationWorkspace(QWidget):
         selected = self.table.get_selected_paragraphs()
         if len(selected) < 2: return
         
-        msg = _tr("Are you sure you want to merge the {n} selected rows? The translation will be concatenated.").format(n=len(selected))
-        reply = QMessageBox.question(self, _tr("Merge selected"), msg,
+        msg = _("Are you sure you want to merge the {n} selected rows? The translation will be concatenated.").format(n=len(selected))
+        reply = QMessageBox.question(self, _("Merge selected"), msg,
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self._on_merge_requested(selected)
-            self.status_label.setText(_tr("Rows merged successfully."))
+            self.status_label.setText(_("Rows merged successfully."))
 
     def _on_rechunk_resplit(self):
         """Split a single long row into multiple ones."""
@@ -1407,59 +1494,13 @@ class TranslationWorkspace(QWidget):
         
         p = paragraphs[0]
         max_chars = self.rechunk_chars.value()
-        method = self.rechunk_method.currentData()
-        
-        import re
-        text = p.original
-        raw = p.raw or text
-        
-        # Simple robust split logic (ported from advanced.py)
-        segments = re.split(r'\n\s*\n', text)
-        if len(segments) < 2: segments = text.split('\n')
-        if len(segments) < 2: segments = re.split(r'(?<=[.!?])\s+', text)
-        
-        chunks = []
-        curr = []
-        curr_len = 0
-        for seg in segments:
-            if curr_len + len(seg) > max_chars and curr:
-                chunks.append('\n\n'.join(curr))
-                curr = [seg]
-                curr_len = len(seg)
-            else:
-                curr.append(seg)
-                curr_len += len(seg)
-        if curr: chunks.append('\n\n'.join(curr))
-        
-        if len(chunks) <= 1:
-            QMessageBox.information(self, _tr("Split Requested"), _tr("No splitting was necessary (text is already small)."))
-            return
-            
-        new_paragraphs = []
-        from lingua.core.cache import Paragraph
-        for i, chunk in enumerate(chunks):
-            nid = p.id + i + 20000
-            nmd5 = uid(f"{nid}{chunk}")
-            np = Paragraph(id=nid, md5=nmd5, raw=chunk, original=chunk, page=p.page, attributes=p.attributes)
-            new_paragraphs.append(np)
-            
-        if self.cache:
-            self.cache.replace_paragraphs([p.id], new_paragraphs)
-            
-        idx = p.row
-        del self.elements[idx]
-        for item in reversed(new_paragraphs):
-            self.elements.insert(idx, item)
-            
-        self.table.populate(self.elements)
-        self.table.selectRow(idx)
-        self.status_label.setText(_tr("Row re-split into {n} chunks.").format(n=len(chunks)))
+        self._perform_smart_split(p, max_chars)
 
-    def _on_editor_translate(self, text, engine_name):
+    def _on_editor_translate(self, text, engine_name, source_editor=None):
         """Handle ad-hoc translation from editor context menus."""
         from PySide6.QtGui import QCursor
         from PySide6.QtWidgets import QApplication
-        from lingua.core.translation import get_engine_class
+        from lingua.core.translation import get_engine_class, get_translator
         from lingua.ui.widgets.editor import TranslationCompareDialog
         
         # 1. UI Feedback
@@ -1470,7 +1511,7 @@ class TranslationWorkspace(QWidget):
         try:
             # 2. Get Translator
             engine_class = get_engine_class(engine_name)
-            translator = get_translator(engine_class)
+            translator = get_translator(engine_class=engine_class)
             
             # Use current config for languages
             config = self.config
@@ -1509,8 +1550,10 @@ class TranslationWorkspace(QWidget):
             
         except Exception as e:
             QApplication.restoreOverrideCursor()
+            import traceback
+            traceback.print_exc()
             self.error_text_edit.appendPlainText(f"CONTEXT TRANSLATE ERROR ({engine_name}):\n{str(e)}\n")
-            QMessageBox.critical(self, _tr('Translation Error'), _tr("An error occurred during quick translation:") + f"\n\n{str(e)}")
+            QMessageBox.critical(self, _('Translation Error'), _("An error occurred during quick translation:") + f"\n\n{str(e)}")
         finally:
             self.status_label.setText("Ready")
 
@@ -1582,7 +1625,7 @@ class TranslationWorkspace(QWidget):
             self.translation_text.blockSignals(False)
             
             self._update_alignment_report(p)
-            self.status_label.setText(_tr("Translation applied to row {n}").format(n=p.row + 1))
+            self.status_label.setText(_("Translation applied to row {n}").format(n=p.row + 1))
 
     def _scroll_settings(self, delta):
         """Scroll the settings bar horizontally."""

@@ -180,34 +180,38 @@ def request(
         proxy = system_proxies.get('https') or system_proxies.get('http')
 
     # Build client with SSL verification disabled (matches original behavior)
-    with httpx.Client(
+    client = httpx.Client(
         verify=False,
         proxy=proxy,
         timeout=timeout,
         follow_redirects=True,
-    ) as client:
-        # Determine how to pass data to httpx
-        req_kwargs = {
-            'method': method,
-            'url': url,
-            'headers': headers,
-        }
-        
-        if data is not None:
-            if isinstance(data, dict):
-                if method.upper() == 'GET':
-                    req_kwargs['params'] = data
-                else:
-                    # Default to form data for dicts (urllib/mechanize behavior)
-                    req_kwargs['data'] = data
-            elif isinstance(data, str):
-                req_kwargs['content'] = data.encode('utf-8')
+    )
+
+    # Determine how to pass data to httpx
+    req_kwargs = {
+        'method': method,
+        'url': url,
+        'headers': headers,
+    }
+    
+    if data is not None:
+        if isinstance(data, dict):
+            if method.upper() == 'GET':
+                req_kwargs['params'] = data
             else:
-                req_kwargs['content'] = data
-                
+                # Default to form data for dicts (urllib/mechanize behavior)
+                req_kwargs['data'] = data
+        elif isinstance(data, str):
+            req_kwargs['content'] = data.encode('utf-8')
+        else:
+            req_kwargs['content'] = data
+
+    if raw_object:
+        # Caller MUST use this as a context manager: 'with request(...) as resp:'
+        # This keeps the client and connection open.
+        return client.stream(**req_kwargs)
+
+    with client:
         response = client.request(**req_kwargs)
         response.raise_for_status()
-
-        if raw_object:
-            return response
         return response.text.strip()

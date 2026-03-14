@@ -280,7 +280,8 @@ class ExtractionWorker(QObject):
 
             merge_length = str(element_handler.get_merge_length())
             cache_id = uid(
-                os.path.abspath(self.epub_path) + target_lang + 'norm_v1')
+                self.epub_path + translator.name + target_lang + merge_length 
+                + 'utf-8' + chunking_method + 'norm_v1')
             
             cache = get_cache(cache_id)
             cache.set_info('title', os.path.basename(self.epub_path))

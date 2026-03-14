@@ -300,7 +300,11 @@ class WorkspaceTable(QTableWidget):
         if len(selected) > 1:
             menu.addAction(_('🔗 Merge {n} Rows').format(n=len(selected)), self._emit_merge)
         if len(selected) == 1:
-            menu.addAction(_('✂️ Split Current Row'), self._emit_split)
+            p = selected[0]
+            split_action = menu.addAction(_('✂️ Split Current Row'), self._emit_split)
+            if len(p.original or '') < 100:
+                split_action.setEnabled(False)
+                split_action.setToolTip(_("This row is too small to be split (min 100 chars)."))
 
         # 3. Alignment Actions (for translated rows)
         translated = [p for p in selected if p.translation]
